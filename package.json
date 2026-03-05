@@ -8,21 +8,22 @@
     "start": "next start"
   },
   "dependencies": {
+    "clsx": "^2.1.0",
+    "lucide-react": "^0.263.1",
     "next": "14.2.0",
+    "papaparse": "^5.4.1",
     "react": "^18",
     "react-dom": "^18",
-    "react-force-graph-2d": "^1.25.4",
-    "papaparse": "^5.4.1",
-    "lucide-react": "^0.263.1",
-    "clsx": "^2.1.0"
+    "react-force-graph-2d": "^1.25.4"
   },
   "devDependencies": {
     "@types/node": "^20",
+    "@types/papaparse": "^5.5.2",
     "@types/react": "^18",
     "@types/react-dom": "^18",
-    "typescript": "^5",
-    "tailwindcss": "^3.4.0",
+    "autoprefixer": "^10",
     "postcss": "^8",
-    "autoprefixer": "^10"
+    "tailwindcss": "^3.4.0",
+    "typescript": "^5"
   }
 }

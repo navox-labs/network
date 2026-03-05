@@ -7,7 +7,7 @@
 
 ![Navox Network Graph](./public/preview.png)
 
-🔗 **[Live Demo →](https://network.navox.tech)**
+🔗 **[Live Demo →](https://navox.tech/network)**
 
 ---
 
@@ -34,7 +34,7 @@ Upload your LinkedIn connections CSV. No login. No server. No data leaves your b
 | **Company Search** | Who do I already know at this company? |
 | **Outreach Queue** | Who should I contact this week, and what do I say? |
 
-🔗 **[Try it now →](https://network.navox.tech)** or run it locally below.
+🔗 **[Try it now →](https://navox.tech/network)** or run it locally below.
 
 ---
 
@@ -59,7 +59,7 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) and upload your CSV.
+Open [http://localhost:3000/network](http://localhost:3000/network) and upload your CSV.
 
 **Requirements:** Node.js 18+
 
