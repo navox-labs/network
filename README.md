@@ -127,7 +127,7 @@ Weak ties in bridge roles (Recruiters, Leadership, Founders, Advisors) rank **hi
 ## Project structure
 
 ```
-navox-network/
+network/
 ├── app/
 │   ├── page.tsx          # Main state orchestration
 │   ├── layout.tsx        # Root layout + fonts
