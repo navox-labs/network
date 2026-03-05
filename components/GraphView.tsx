@@ -26,6 +26,13 @@ const TIE_COLORS: Record<string, string> = {
   dormant:  "#9ca3af",
 };
 
+function hexToRgba(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 interface Props {
   graphData: GraphData;
   connections: Connection[];
@@ -44,6 +51,7 @@ export default function GraphView({ graphData, connections, highlightedIds, sele
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ w: 800, h: 600 });
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [filterRole, setFilterRole] = useState<RoleCategory | null>(null);
   const [filterTie, setFilterTie] = useState<string | null>(null);
 
@@ -88,8 +96,10 @@ export default function GraphView({ graphData, connections, highlightedIds, sele
   const handleNodeHover = useCallback((node: GraphNode | null, event?: MouseEvent) => {
     if (!node || node.id === "self") {
       setTooltip(null);
+      setHoveredNodeId(null);
       return;
     }
+    setHoveredNodeId(node.id);
     if (event) {
       setTooltip({ x: event.clientX + 14, y: event.clientY - 10, node });
     }
@@ -105,6 +115,7 @@ export default function GraphView({ graphData, connections, highlightedIds, sele
     const size = nodeVal(node);
     const color = nodeColor(node);
     const isSelected = selectedNode && connections.find(c => c.id === node.id) === selectedNode;
+    const isHovered = hoveredNodeId === node.id;
 
     if (node.id === "self") {
       // Self node: glowing purple circle
@@ -120,51 +131,43 @@ export default function GraphView({ graphData, connections, highlightedIds, sele
       ctx.lineWidth = 1.5;
       ctx.stroke();
 
-      // Label
-      const label = "You";
-      const fontSize = Math.max(10, 12 / globalScale);
-      ctx.font = `600 ${fontSize}px DM Sans, sans-serif`;
-      ctx.fillStyle = "#1a1d26";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(label, node.x!, node.y! + size + fontSize * 0.8);
       return;
     }
 
-    // Regular node
+    // Regular node — semi-transparent fill with colored border
+    const isDimmed = color.startsWith("rgba");
     ctx.beginPath();
     ctx.arc(node.x!, node.y!, size, 0, 2 * Math.PI);
-    ctx.fillStyle = color;
+    // Stronger pastel fill so nodes are clearly visible
+    ctx.fillStyle = isDimmed ? color : hexToRgba(color, 0.25);
     ctx.fill();
 
-    // Selected ring
+    // Border — changes color on hover and select
+    ctx.beginPath();
+    ctx.arc(node.x!, node.y!, size, 0, 2 * Math.PI);
     if (isSelected) {
-      ctx.beginPath();
-      ctx.arc(node.x!, node.y!, size + 2.5, 0, 2 * Math.PI);
       ctx.strokeStyle = "#1a1d26";
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
+      ctx.lineWidth = 2.5;
+    } else if (isHovered) {
+      ctx.strokeStyle = isDimmed ? "rgba(180,185,200,0.6)" : hexToRgba(color, 0.9);
+      ctx.lineWidth = 2.5;
+    } else {
+      ctx.strokeStyle = isDimmed ? "rgba(180,185,200,0.4)" : hexToRgba(color, 0.6);
+      ctx.lineWidth = 1.2;
     }
+    ctx.stroke();
 
-    // Bridge indicator: small dot
+    // Bridge indicator: pulsing red dot
     if (node.isBridge && globalScale > 0.5) {
+      const pulse = 0.5 + 0.5 * Math.sin(Date.now() / 150);
+      const dotR = size * 0.25 + pulse * size * 0.1;
       ctx.beginPath();
-      ctx.arc(node.x! + size * 0.6, node.y! - size * 0.6, size * 0.3, 0, 2 * Math.PI);
-      ctx.fillStyle = "#16a36b";
+      ctx.arc(node.x! + size * 0.65, node.y! - size * 0.65, dotR, 0, 2 * Math.PI);
+      ctx.fillStyle = `rgba(217,150,10,${0.6 + pulse * 0.4})`;
       ctx.fill();
     }
+  }, [nodeColor, nodeVal, selectedNode, connections, hoveredNodeId]);
 
-    // Label at higher zoom
-    if (globalScale > 1.8 || isSelected) {
-      const label = node.name.split(" ")[0];
-      const fontSize = Math.max(8, 10 / globalScale);
-      ctx.font = `${fontSize}px DM Sans, sans-serif`;
-      ctx.fillStyle = "rgba(26,29,38,0.75)";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(label, node.x!, node.y! + size + fontSize * 0.9);
-    }
-  }, [nodeColor, nodeVal, selectedNode, connections]);
 
   const roles = Object.entries(ROLE_COLORS).filter(([r]) => r !== "Self") as [RoleCategory, string][];
 
@@ -312,6 +315,7 @@ export default function GraphView({ graphData, connections, highlightedIds, sele
           enableZoomInteraction={true}
           minZoom={0.2}
           maxZoom={8}
+
         />
       )}
 
@@ -321,17 +325,15 @@ export default function GraphView({ graphData, connections, highlightedIds, sele
           className="tooltip-card"
           style={{ left: Math.min(tooltip.x, dimensions.w - 300), top: tooltip.y }}
         >
-          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>{tooltip.node.name}</div>
-          <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 1 }}>{tooltip.node.position}</div>
-          <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 10 }}>{tooltip.node.company}</div>
-          <div style={{ display: "flex", gap: 6 }}>
-            <span className={`badge badge-${tooltip.node.tieCategory}`}>
-              {Math.round(tooltip.node.tieStrength * 100)}%
-            </span>
-            {tooltip.node.isBridge && (
-              <span className="badge" style={{ background: "rgba(22,163,107,0.1)", color: "var(--strong)" }}>bridge</span>
-            )}
+          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 2, color: "var(--text-primary)" }}>{tooltip.node.name}</div>
+          <div style={{ fontSize: 12, color: "var(--accent)", marginBottom: 1 }}>{tooltip.node.company}</div>
+          <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>{tooltip.node.position}</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: TIE_COLORS[tooltip.node.tieCategory] || "var(--text-muted)" }}>
+            Tie strength: {Math.round(tooltip.node.tieStrength * 100)}%
           </div>
+          {tooltip.node.isBridge && (
+            <div style={{ fontSize: 11, color: "var(--strong)", marginTop: 2 }}>Bridge node</div>
+          )}
         </div>
       )}
     </div>
