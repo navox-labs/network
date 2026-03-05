@@ -115,8 +115,8 @@ export default function GapPanel({ gapAnalysis, connections }: Props) {
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {Object.entries(ROLE_COLORS).map(([role, color]) => {
-            const current = rolePercentages[role] || 0;
-            const ideal = IDEAL_PCT[role] || 0;
+            const current = rolePercentages[role as keyof typeof rolePercentages] || 0;
+            const ideal = IDEAL_PCT[role as keyof typeof IDEAL_PCT] || 0;
             return (
               <RoleRow key={role} role={role} color={color} current={current} ideal={ideal} />
             );

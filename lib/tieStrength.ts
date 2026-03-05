@@ -147,7 +147,7 @@ export function classifyRole(position: string): RoleCategory {
 // Roles that most frequently bridge to hiring decisions or different clusters.
 // Recruiters, Leadership, Founders, Advisors = highest bridging value per paper.
 
-const BRIDGE_ROLES: Set<RoleCategory> = new Set([
+const BRIDGE_ROLES = new Set<RoleCategory>([
   "Recruiters",
   "Leadership",
   "Founders/CEOs",
