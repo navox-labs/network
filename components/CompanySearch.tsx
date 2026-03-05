@@ -249,7 +249,7 @@ function ResultCard({ connection: c, relevanceScore, pathDescription, rank, onSe
             {Math.round(c.tieStrength * 100)}% {c.tieCategory}
           </span>
           {c.isBridge && (
-            <span className="badge" style={{ background: "rgba(52,211,153,0.1)", color: "var(--strong)" }}>bridge</span>
+            <span className="badge" style={{ background: "rgba(22,163,107,0.1)", color: "var(--strong)" }}>bridge</span>
           )}
           <span style={{
             fontSize: 11, color: tieColors[c.tieCategory] || "var(--text-muted)",

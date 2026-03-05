@@ -8,22 +8,22 @@ import type { Connection, GraphData, GraphNode, RoleCategory } from "@/lib/tieSt
 const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), { ssr: false });
 
 const ROLE_COLORS: Record<RoleCategory, string> = {
-  "Self":           "#4f8ef7",
-  "Engineers/Devs": "#818cf8",
-  "Founders/CEOs":  "#f472b6",
-  "Recruiters":     "#34d399",
-  "AI/ML/Data":     "#a78bfa",
-  "Leadership":     "#fbbf24",
-  "Design/Product": "#fb923c",
-  "Advisors":       "#22d3ee",
-  "Other":          "#4b5563",
+  "Self":           "#6c4bf4",
+  "Engineers/Devs": "#6366f1",
+  "Founders/CEOs":  "#e04590",
+  "Recruiters":     "#16a36b",
+  "AI/ML/Data":     "#8b5cf6",
+  "Leadership":     "#d9960a",
+  "Design/Product": "#ea580c",
+  "Advisors":       "#0891b2",
+  "Other":          "#6b7280",
 };
 
 const TIE_COLORS: Record<string, string> = {
-  strong:   "#34d399",
-  moderate: "#fbbf24",
-  weak:     "#818cf8",
-  dormant:  "#374151",
+  strong:   "#16a36b",
+  moderate: "#d9960a",
+  weak:     "#6366f1",
+  dormant:  "#9ca3af",
 };
 
 interface Props {
@@ -58,11 +58,11 @@ export default function GraphView({ graphData, connections, highlightedIds, sele
 
   const nodeColor = useCallback((node: GraphNode) => {
     const isHighlighted = highlightedIds.size > 0 && !highlightedIds.has(node.id);
-    if (isHighlighted) return "rgba(60,65,85,0.3)";
-    if (node.id === "self") return "#4f8ef7";
-    if (filterRole && node.roleCategory !== filterRole) return "rgba(60,65,85,0.2)";
-    if (filterTie && node.tieCategory !== filterTie) return "rgba(60,65,85,0.2)";
-    return ROLE_COLORS[node.roleCategory] || "#4b5563";
+    if (isHighlighted) return "rgba(180,185,200,0.35)";
+    if (node.id === "self") return "#6c4bf4";
+    if (filterRole && node.roleCategory !== filterRole) return "rgba(180,185,200,0.3)";
+    if (filterTie && node.tieCategory !== filterTie) return "rgba(180,185,200,0.3)";
+    return ROLE_COLORS[node.roleCategory] || "#6b7280";
   }, [highlightedIds, filterRole, filterTie]);
 
   const nodeVal = useCallback((node: GraphNode) => {
@@ -74,11 +74,11 @@ export default function GraphView({ graphData, connections, highlightedIds, sele
   const linkColor = useCallback((link: any) => {
     const targetId = typeof link.target === "object" ? link.target.id : link.target;
     if (highlightedIds.size > 0 && !highlightedIds.has(targetId)) {
-      return "rgba(40,44,60,0.2)";
+      return "rgba(200,205,215,0.3)";
     }
     const conn = connections.find(c => c.id === targetId);
-    if (!conn) return "rgba(40,44,60,0.3)";
-    return TIE_COLORS[conn.tieCategory] + "40"; // 25% opacity
+    if (!conn) return "rgba(200,205,215,0.35)";
+    return TIE_COLORS[conn.tieCategory] + "50"; // 31% opacity
   }, [connections, highlightedIds]);
 
   const linkWidth = useCallback((link: any) => {
@@ -107,16 +107,16 @@ export default function GraphView({ graphData, connections, highlightedIds, sele
     const isSelected = selectedNode && connections.find(c => c.id === node.id) === selectedNode;
 
     if (node.id === "self") {
-      // Self node: glowing blue circle
+      // Self node: glowing purple circle
       ctx.beginPath();
       ctx.arc(node.x!, node.y!, size, 0, 2 * Math.PI);
-      ctx.fillStyle = "#4f8ef7";
+      ctx.fillStyle = "#6c4bf4";
       ctx.fill();
 
       // Outer ring
       ctx.beginPath();
       ctx.arc(node.x!, node.y!, size + 3, 0, 2 * Math.PI);
-      ctx.strokeStyle = "rgba(79,142,247,0.4)";
+      ctx.strokeStyle = "rgba(108,75,244,0.4)";
       ctx.lineWidth = 1.5;
       ctx.stroke();
 
@@ -124,7 +124,7 @@ export default function GraphView({ graphData, connections, highlightedIds, sele
       const label = "You";
       const fontSize = Math.max(10, 12 / globalScale);
       ctx.font = `600 ${fontSize}px DM Sans, sans-serif`;
-      ctx.fillStyle = "#e8eaf0";
+      ctx.fillStyle = "#1a1d26";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(label, node.x!, node.y! + size + fontSize * 0.8);
@@ -141,7 +141,7 @@ export default function GraphView({ graphData, connections, highlightedIds, sele
     if (isSelected) {
       ctx.beginPath();
       ctx.arc(node.x!, node.y!, size + 2.5, 0, 2 * Math.PI);
-      ctx.strokeStyle = "#ffffff";
+      ctx.strokeStyle = "#1a1d26";
       ctx.lineWidth = 1.5;
       ctx.stroke();
     }
@@ -150,7 +150,7 @@ export default function GraphView({ graphData, connections, highlightedIds, sele
     if (node.isBridge && globalScale > 0.5) {
       ctx.beginPath();
       ctx.arc(node.x! + size * 0.6, node.y! - size * 0.6, size * 0.3, 0, 2 * Math.PI);
-      ctx.fillStyle = "#34d399";
+      ctx.fillStyle = "#16a36b";
       ctx.fill();
     }
 
@@ -159,7 +159,7 @@ export default function GraphView({ graphData, connections, highlightedIds, sele
       const label = node.name.split(" ")[0];
       const fontSize = Math.max(8, 10 / globalScale);
       ctx.font = `${fontSize}px DM Sans, sans-serif`;
-      ctx.fillStyle = "rgba(232,234,240,0.85)";
+      ctx.fillStyle = "rgba(26,29,38,0.75)";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(label, node.x!, node.y! + size + fontSize * 0.9);
@@ -254,11 +254,11 @@ export default function GraphView({ graphData, connections, highlightedIds, sele
             <span className={`badge badge-${selectedNode.tieCategory}`}>
               {Math.round(selectedNode.tieStrength * 100)}% {selectedNode.tieCategory} tie
             </span>
-            <span className="badge" style={{ background: "rgba(79,142,247,0.1)", color: "var(--accent)" }}>
+            <span className="badge" style={{ background: "rgba(108,75,244,0.08)", color: "var(--accent)" }}>
               {selectedNode.roleCategory}
             </span>
             {selectedNode.isBridge && (
-              <span className="badge" style={{ background: "rgba(52,211,153,0.1)", color: "var(--strong)" }}>
+              <span className="badge" style={{ background: "rgba(22,163,107,0.1)", color: "var(--strong)" }}>
                 ⬡ bridge node
               </span>
             )}
@@ -295,7 +295,7 @@ export default function GraphView({ graphData, connections, highlightedIds, sele
           graphData={graphData as any}
           width={dimensions.w}
           height={dimensions.h}
-          backgroundColor="#0a0b0f"
+          backgroundColor="#ffffff"
           nodeColor={nodeColor as any}
           nodeVal={nodeVal as any}
           nodeCanvasObject={drawNode as any}
@@ -329,7 +329,7 @@ export default function GraphView({ graphData, connections, highlightedIds, sele
               {Math.round(tooltip.node.tieStrength * 100)}%
             </span>
             {tooltip.node.isBridge && (
-              <span className="badge" style={{ background: "rgba(52,211,153,0.1)", color: "var(--strong)" }}>bridge</span>
+              <span className="badge" style={{ background: "rgba(22,163,107,0.1)", color: "var(--strong)" }}>bridge</span>
             )}
           </div>
         </div>

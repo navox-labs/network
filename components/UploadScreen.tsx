@@ -36,7 +36,7 @@ export default function UploadScreen({ onFile, isLoading, error }: Props) {
       alignItems: "center",
       justifyContent: "center",
       padding: "40px 24px",
-      background: "radial-gradient(ellipse at 50% 0%, rgba(79,142,247,0.08) 0%, var(--bg) 60%)",
+      background: "radial-gradient(ellipse at 50% 0%, rgba(108,75,244,0.06) 0%, var(--bg) 60%)",
     }}>
       {/* Header */}
       <div style={{ textAlign: "center", marginBottom: 48 }}>
@@ -46,8 +46,8 @@ export default function UploadScreen({ onFile, isLoading, error }: Props) {
           gap: 10,
           marginBottom: 20,
           padding: "6px 16px",
-          background: "rgba(79,142,247,0.1)",
-          border: "1px solid rgba(79,142,247,0.2)",
+          background: "rgba(108,75,244,0.08)",
+          border: "1px solid rgba(108,75,244,0.15)",
           borderRadius: 20,
         }}>
           <Network size={14} color="var(--accent)" />
@@ -144,8 +144,8 @@ export default function UploadScreen({ onFile, isLoading, error }: Props) {
         <div style={{
           maxWidth: 520, width: "100%",
           padding: "12px 16px",
-          background: "rgba(248,113,113,0.08)",
-          border: "1px solid rgba(248,113,113,0.2)",
+          background: "rgba(220,38,38,0.06)",
+          border: "1px solid rgba(220,38,38,0.15)",
           borderRadius: 8,
           color: "var(--critical)",
           fontSize: 13,

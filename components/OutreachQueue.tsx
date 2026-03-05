@@ -106,7 +106,7 @@ export default function OutreachQueue({ connections, gapAnalysis }: Props) {
               key={conn.id}
               style={{
                 background: isDone ? "var(--bg-card)" : "var(--bg-panel)",
-                border: `1px solid ${isDone ? "rgba(52,211,153,0.2)" : "var(--border)"}`,
+                border: `1px solid ${isDone ? "rgba(22,163,107,0.2)" : "var(--border)"}`,
                 borderRadius: 10,
                 overflow: "hidden",
                 opacity: isDone ? 0.6 : 1,
@@ -141,11 +141,11 @@ export default function OutreachQueue({ connections, gapAnalysis }: Props) {
                     <span className={`badge badge-${conn.tieCategory}`}>
                       {conn.tieCategory} tie
                     </span>
-                    <span className="badge" style={{ background: "rgba(79,142,247,0.1)", color: "var(--accent)" }}>
+                    <span className="badge" style={{ background: "rgba(108,75,244,0.08)", color: "var(--accent)" }}>
                       {conn.roleCategory}
                     </span>
                     {conn.isBridge && (
-                      <span className="badge" style={{ background: "rgba(52,211,153,0.1)", color: "var(--strong)" }}>
+                      <span className="badge" style={{ background: "rgba(22,163,107,0.1)", color: "var(--strong)" }}>
                         bridge node
                       </span>
                     )}

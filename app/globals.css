@@ -3,39 +3,39 @@
 @tailwind utilities;
 
 :root {
-  --bg:        #0a0b0f;
-  --bg-panel:  #111318;
-  --bg-card:   #16181f;
-  --bg-hover:  #1d2029;
-  --border:    #232631;
-  --border-hi: #2e3347;
+  --bg:        #ffffff;
+  --bg-panel:  #f8f9fb;
+  --bg-card:   #f1f3f7;
+  --bg-hover:  #ebedf2;
+  --border:    #e2e5eb;
+  --border-hi: #d0d4dc;
 
-  --text-primary:   #e8eaf0;
-  --text-secondary: #8b90a0;
-  --text-muted:     #555a6e;
+  --text-primary:   #1a1d26;
+  --text-secondary: #5a5f72;
+  --text-muted:     #8b90a0;
 
-  --accent:      #4f8ef7;
-  --accent-glow: rgba(79, 142, 247, 0.15);
-  --accent-dim:  rgba(79, 142, 247, 0.6);
+  --accent:      #6c4bf4;
+  --accent-glow: rgba(108, 75, 244, 0.08);
+  --accent-dim:  rgba(108, 75, 244, 0.4);
 
-  --strong:   #34d399;
-  --moderate: #fbbf24;
-  --weak:     #818cf8;
-  --dormant:  #374151;
+  --strong:   #16a36b;
+  --moderate: #d9960a;
+  --weak:     #6366f1;
+  --dormant:  #9ca3af;
 
-  --critical: #f87171;
-  --warning:  #fb923c;
-  --ok:       #34d399;
+  --critical: #dc2626;
+  --warning:  #ea580c;
+  --ok:       #16a36b;
 
-  /* role colours */
-  --role-self:       #4f8ef7;
-  --role-eng:        #818cf8;
-  --role-founder:    #f472b6;
-  --role-recruiter:  #34d399;
-  --role-aiml:       #a78bfa;
-  --role-leadership: #fbbf24;
-  --role-design:     #fb923c;
-  --role-advisor:    #22d3ee;
+  /* role colours — slightly deeper for light bg readability */
+  --role-self:       #6c4bf4;
+  --role-eng:        #6366f1;
+  --role-founder:    #e04590;
+  --role-recruiter:  #16a36b;
+  --role-aiml:       #8b5cf6;
+  --role-leadership: #d9960a;
+  --role-design:     #ea580c;
+  --role-advisor:    #0891b2;
   --role-other:      #6b7280;
 
   --font-mono: 'DM Mono', monospace;
@@ -82,10 +82,10 @@ body {
   letter-spacing: 0.03em;
 }
 
-.badge-strong   { background: rgba(52,211,153,0.12); color: var(--strong); }
-.badge-moderate { background: rgba(251,191,36,0.12); color: var(--moderate); }
-.badge-weak     { background: rgba(129,140,248,0.12); color: var(--weak); }
-.badge-dormant  { background: rgba(55,65,81,0.4); color: var(--text-muted); }
+.badge-strong   { background: rgba(22,163,107,0.1); color: var(--strong); }
+.badge-moderate { background: rgba(217,150,10,0.1); color: var(--moderate); }
+.badge-weak     { background: rgba(99,102,241,0.1); color: var(--weak); }
+.badge-dormant  { background: rgba(156,163,175,0.15); color: var(--text-muted); }
 
 .btn {
   display: inline-flex;
@@ -193,7 +193,7 @@ input[type="text"]:focus, input[type="search"]:focus {
   border-radius: 10px;
   padding: 12px 14px;
   pointer-events: none;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.1);
   min-width: 200px;
   max-width: 280px;
 }

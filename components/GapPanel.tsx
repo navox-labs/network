@@ -4,14 +4,14 @@ import { AlertTriangle, TrendingUp, Users, Zap } from "lucide-react";
 import type { GapAnalysis, Connection, RoleCategory } from "@/lib/tieStrength";
 
 const ROLE_COLORS: Record<string, string> = {
-  "Engineers/Devs": "#818cf8",
-  "Founders/CEOs":  "#f472b6",
-  "Recruiters":     "#34d399",
-  "AI/ML/Data":     "#a78bfa",
-  "Leadership":     "#fbbf24",
-  "Design/Product": "#fb923c",
-  "Advisors":       "#22d3ee",
-  "Other":          "#4b5563",
+  "Engineers/Devs": "#6366f1",
+  "Founders/CEOs":  "#e04590",
+  "Recruiters":     "#16a36b",
+  "AI/ML/Data":     "#8b5cf6",
+  "Leadership":     "#d9960a",
+  "Design/Product": "#ea580c",
+  "Advisors":       "#0891b2",
+  "Other":          "#6b7280",
 };
 
 interface Props {
@@ -146,8 +146,8 @@ export default function GapPanel({ gapAnalysis, connections }: Props) {
       {gaps.length === 0 && (
         <div style={{
           padding: "20px 24px",
-          background: "rgba(52,211,153,0.06)",
-          border: "1px solid rgba(52,211,153,0.15)",
+          background: "rgba(22,163,107,0.06)",
+          border: "1px solid rgba(22,163,107,0.15)",
           borderRadius: 10,
           color: "var(--strong)",
           fontSize: 14,
