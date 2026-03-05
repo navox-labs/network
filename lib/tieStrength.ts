@@ -448,7 +448,7 @@ export function analyzeGaps(connections: Connection[]): GapAnalysis {
     (c) => c.tieCategory === "weak" || c.tieCategory === "moderate"
   ).length / total;
   const networkHealthScore = Math.round(
-    (bridgingCapitalScore * 40 + weakTiePct * 35 + avgTieStrength * 25) * 100
+    bridgingCapitalScore * 40 + weakTiePct * 35 + avgTieStrength * 25
   );
 
   const interpretation =
