@@ -5,9 +5,11 @@
 > *"The people you barely know are more likely to get you a job than your best friends."*
 > — Granovetter, 1973. Confirmed causally on 20 million LinkedIn users in 2022.
 
-![Navox Network Graph](./public/preview.png)
+<video src="./public/navox-network.mov" autoplay loop muted playsinline></video>
 
-🔗 **[Live Demo →](https://navox.tech/network)**
+![Navox Network](./public/navox-network.png)
+
+🔗 **<a href="https://navox.tech/network" target="_blank">Live Demo →</a>**
 
 ---
 
@@ -34,7 +36,7 @@ Upload your LinkedIn connections CSV. No login. No server. No data leaves your b
 | **Company Search** | Who do I already know at this company? |
 | **Outreach Queue** | Who should I contact this week, and what do I say? |
 
-🔗 **[Try it now →](https://navox.tech/network)** or run it locally below.
+🔗 **<a href="https://navox.tech/network" target="_blank">Try it now →</a>** or run it locally below.
 
 ---
 
