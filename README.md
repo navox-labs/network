@@ -5,7 +5,11 @@
 > *"The people you barely know are more likely to get you a job than your best friends."*
 > — Granovetter, 1973. Confirmed causally on 20 million LinkedIn users in 2022.
 
-<video src="./public/navox-network.mov" autoplay loop muted playsinline></video>
+
+
+https://github.com/user-attachments/assets/5f607cf1-63ec-428b-9523-978420da0298
+
+
 
 ![Navox Network](./public/navox-network.png)
 
