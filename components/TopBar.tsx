@@ -1,8 +1,9 @@
 "use client";
 
-import { Network, BarChart3, Search, Zap, RotateCcw } from "lucide-react";
+import { Rabbit, Network, BarChart3, Search, Zap, RotateCcw } from "lucide-react";
 import type { Connection, GapAnalysis } from "@/lib/tieStrength";
 import type { ActivePanel } from "@/app/page";
+import Link from "next/link";
 
 interface Props {
   connections: Connection[];
@@ -35,20 +36,16 @@ export default function TopBar({ connections, gapAnalysis, activePanel, setActiv
       flexShrink: 0,
     }}>
       {/* Logo */}
-      <div style={{
-        display: "flex", alignItems: "center", gap: 8,
-        marginRight: 28, paddingRight: 24,
-        borderRight: "1px solid var(--border)",
-      }}>
-        <div style={{
-          width: 26, height: 26,
-          background: "var(--accent-glow)",
-          border: "1px solid var(--accent-dim)",
-          borderRadius: 6,
-          display: "flex", alignItems: "center", justifyContent: "center",
-        }}>
-          <Network size={14} color="var(--accent)" />
-        </div>
+      <Link
+        href="https://www.navox.tech/"
+        style={{
+          display: "flex", alignItems: "center", gap: 8,
+          marginRight: 28, paddingRight: 24,
+          borderRight: "1px solid var(--border)",
+          textDecoration: "none",
+        }}
+      >
+        <Rabbit size={24} color="var(--accent)" />
         <span style={{
           fontFamily: "var(--font-mono)", fontSize: 12,
           color: "var(--text-secondary)", letterSpacing: "0.05em",
@@ -56,7 +53,7 @@ export default function TopBar({ connections, gapAnalysis, activePanel, setActiv
         }}>
           NAVOX<span style={{ color: "var(--accent)" }}> INTELLIGENCE</span>
         </span>
-      </div>
+      </Link>
 
       {/* Nav tabs */}
       <div style={{ display: "flex", gap: 2, flex: 1 }}>
