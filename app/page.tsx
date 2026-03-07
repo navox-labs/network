@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import Papa from "papaparse";
 import {
   parseLinkedInCSV,
@@ -31,6 +31,23 @@ export default function Home() {
   const [selectedNode, setSelectedNode] = useState<Connection | null>(null);
   const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
   const [csvMeta, setCsvMeta] = useState<{ filename: string; generatedAt: string } | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("navox-network-data");
+      if (!raw) return;
+      const stored = JSON.parse(raw) as { connections: Connection[]; gapAnalysis: GapAnalysis; uploadedAt: string };
+      if (!stored.connections?.length) return;
+      const graph = buildGraphData(stored.connections);
+      setConnections(stored.connections);
+      setGraphData(graph);
+      setGapAnalysis(stored.gapAnalysis);
+      setCsvMeta({
+        filename: "Connections.csv",
+        generatedAt: new Date(stored.uploadedAt).toLocaleDateString("en-CA"),
+      });
+    } catch {}
+  }, []);
 
   const handleFile = useCallback((file: File) => {
     setIsLoading(true);
@@ -67,6 +84,11 @@ export default function Home() {
             filename: file.name,
             generatedAt: new Date().toLocaleDateString("en-CA"),
           });
+          localStorage.setItem("navox-network-data", JSON.stringify({
+            connections: parsed,
+            gapAnalysis: gaps,
+            uploadedAt: new Date().toISOString(),
+          }));
         } catch (e) {
           setError("Failed to parse CSV. Please export a fresh copy from LinkedIn Settings → Data Privacy → Connections.");
         } finally {
@@ -89,6 +111,7 @@ export default function Home() {
     setCsvMeta(null);
     setError(null);
     setActivePanel("graph");
+    localStorage.removeItem("navox-network-data");
   };
 
   if (!graphData || !gapAnalysis) {
