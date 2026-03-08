@@ -175,6 +175,10 @@ export default function Home() {
         }),
       });
 
+      if (res.status === 401) {
+        setDraftMessages((prev) => new Map(prev).set(conn.id, "Access key required. DM me on LinkedIn for the key: linkedin.com/in/nahrinoda"));
+        return;
+      }
       if (!res.ok) throw new Error("Failed");
       const reader = res.body?.getReader();
       if (!reader) throw new Error("No reader");

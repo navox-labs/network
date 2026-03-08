@@ -177,6 +177,17 @@ export default function AskCoachDialog({ isOpen, onClose, systemPrompt }: Props)
                 Unlock
               </button>
             </div>
+            <div style={{ marginTop: 10, fontSize: 12, color: "var(--text-muted)" }}>
+              Need the access key?{" "}
+              <a
+                href="https://www.linkedin.com/in/nahrinoda/"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: "var(--accent)", textDecoration: "underline" }}
+              >
+                DM me on LinkedIn
+              </a>
+            </div>
           </div>
         )}
 
