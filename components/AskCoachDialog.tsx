@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { X, Sparkles, Send } from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { X, Sparkles, Send, Lock } from "lucide-react";
 
 interface Props {
   isOpen: boolean;
@@ -13,7 +13,11 @@ export default function AskCoachDialog({ isOpen, onClose, systemPrompt }: Props)
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [needsKey, setNeedsKey] = useState(false);
+  const [keyInput, setKeyInput] = useState("");
+  const pendingQuestion = useRef<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const keyInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -23,24 +27,35 @@ export default function AskCoachDialog({ isOpen, onClose, systemPrompt }: Props)
     }
   }, [isOpen]);
 
-  const handleAsk = async () => {
-    const q = question.trim();
-    if (!q || isLoading || !systemPrompt) return;
+  useEffect(() => {
+    if (needsKey) setTimeout(() => keyInputRef.current?.focus(), 100);
+  }, [needsKey]);
 
+  const sendQuestion = useCallback(async (q: string) => {
     setIsLoading(true);
     setAnswer("");
     setQuestion("");
 
     try {
+      const coachKey = localStorage.getItem("navox-coach-key") || "";
       const res = await fetch("/coach/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(coachKey && { "x-coach-key": coachKey }),
+        },
         body: JSON.stringify({
           messages: [{ role: "user", content: q }],
           systemPrompt: systemPrompt + "\n\nKeep your response concise and actionable. If the question is about external topics (companies, roles, skills), search the web and provide real information. If relevant, connect your answer back to the user's network data.",
         }),
       });
 
+      if (res.status === 401) {
+        pendingQuestion.current = q;
+        setNeedsKey(true);
+        setIsLoading(false);
+        return;
+      }
       if (!res.ok) throw new Error("Failed");
       const reader = res.body?.getReader();
       if (!reader) throw new Error("No reader");
@@ -58,6 +73,25 @@ export default function AskCoachDialog({ isOpen, onClose, systemPrompt }: Props)
       setAnswer("Sorry, couldn't reach the coach. Make sure the coach API is running.");
     } finally {
       setIsLoading(false);
+    }
+  }, [systemPrompt]);
+
+  const handleAsk = () => {
+    const q = question.trim();
+    if (!q || isLoading || !systemPrompt) return;
+    sendQuestion(q);
+  };
+
+  const handleKeySubmit = () => {
+    const key = keyInput.trim();
+    if (!key) return;
+    localStorage.setItem("navox-coach-key", key);
+    setNeedsKey(false);
+    setKeyInput("");
+    if (pendingQuestion.current) {
+      const q = pendingQuestion.current;
+      pendingQuestion.current = null;
+      sendQuestion(q);
     }
   };
 
@@ -114,8 +148,40 @@ export default function AskCoachDialog({ isOpen, onClose, systemPrompt }: Props)
           </button>
         </div>
 
+        {/* Passphrase prompt */}
+        {needsKey && (
+          <div style={{ padding: "16px" }}>
+            <div style={{
+              display: "flex", alignItems: "center", gap: 8, marginBottom: 10,
+              color: "var(--text-secondary)", fontSize: 13,
+            }}>
+              <Lock size={14} />
+              <span>Enter the access key to use Coach</span>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                ref={keyInputRef}
+                type="password"
+                placeholder="Access key"
+                value={keyInput}
+                onChange={(e) => setKeyInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleKeySubmit(); }}
+                style={{ flex: 1 }}
+              />
+              <button
+                onClick={handleKeySubmit}
+                disabled={!keyInput.trim()}
+                className="btn btn-primary"
+                style={{ padding: "7px 12px", opacity: !keyInput.trim() ? 0.5 : 1 }}
+              >
+                Unlock
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Answer */}
-        {(answer || isLoading) && (
+        {!needsKey && (answer || isLoading) && (
           <div style={{
             padding: "16px 16px 0",
           }}>
@@ -141,26 +207,28 @@ export default function AskCoachDialog({ isOpen, onClose, systemPrompt }: Props)
         )}
 
         {/* Input */}
-        <div style={{ padding: "16px", display: "flex", gap: 8 }}>
-          <input
-            ref={inputRef}
-            type="text"
-            placeholder="What do you want to know about your network?"
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") handleAsk(); }}
-            disabled={isLoading}
-            style={{ flex: 1, opacity: isLoading ? 0.6 : 1 }}
-          />
-          <button
-            onClick={handleAsk}
-            disabled={isLoading || !question.trim()}
-            className="btn btn-primary"
-            style={{ padding: "7px 12px", opacity: isLoading || !question.trim() ? 0.5 : 1 }}
-          >
-            <Send size={14} />
-          </button>
-        </div>
+        {!needsKey && (
+          <div style={{ padding: "16px", display: "flex", gap: 8 }}>
+            <input
+              ref={inputRef}
+              type="text"
+              placeholder="What do you want to know about your network?"
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleAsk(); }}
+              disabled={isLoading}
+              style={{ flex: 1, opacity: isLoading ? 0.6 : 1 }}
+            />
+            <button
+              onClick={handleAsk}
+              disabled={isLoading || !question.trim()}
+              className="btn btn-primary"
+              style={{ padding: "7px 12px", opacity: isLoading || !question.trim() ? 0.5 : 1 }}
+            >
+              <Send size={14} />
+            </button>
+          </div>
+        )}
       </div>
     </>
   );

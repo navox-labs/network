@@ -162,9 +162,13 @@ export default function Home() {
     setDraftingId(conn.id);
     try {
       const prompt = getDraftPrompt(conn);
+      const coachKey = localStorage.getItem("navox-coach-key") || "";
       const res = await fetch("/coach/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(coachKey && { "x-coach-key": coachKey }),
+        },
         body: JSON.stringify({
           messages: [{ role: "user", content: prompt }],
           systemPrompt: "You are a professional networking message writer. Write ONLY the message body. No commentary.",
