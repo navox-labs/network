@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import Papa from "papaparse";
 import {
   parseLinkedInCSV,
@@ -13,7 +13,8 @@ import {
 } from "@/lib/tieStrength";
 import { buildAgentContext } from "@/lib/agentContext";
 import { buildSystemPrompt } from "@/lib/systemPrompt";
-import { loadCoachMessages, saveCoachMessages, type ChatMessage } from "@/lib/coachStorage";
+import { buildContextSection, type CoachContext } from "@/lib/coachContext";
+import { getBarInsight, getDraftPrompt } from "@/lib/coachInsights";
 
 import UploadScreen from "@/components/UploadScreen";
 import TopBar from "@/components/TopBar";
@@ -21,8 +22,8 @@ import GraphView from "@/components/GraphView";
 import GapPanel from "@/components/GapPanel";
 import CompanySearch from "@/components/CompanySearch";
 import OutreachQueue from "@/components/OutreachQueue";
-import CoachBubble from "@/components/CoachBubble";
-import CoachPanel from "@/components/CoachPanel";
+import CoachBar from "@/components/CoachBar";
+import AskCoachDialog from "@/components/AskCoachDialog";
 
 export type ActivePanel = "graph" | "gaps" | "search" | "queue";
 
@@ -37,14 +38,15 @@ export default function Home() {
   const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
   const [csvMeta, setCsvMeta] = useState<{ filename: string; generatedAt: string } | null>(null);
 
-  // Coach state
-  const [coachOpen, setCoachOpen] = useState(false);
-  const [coachMessages, setCoachMessages] = useState<ChatMessage[]>([]);
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [hasNotification, setHasNotification] = useState(false);
-  const coachInitSent = useRef(false);
+  // Coach state (lightweight — no chat)
+  const [askCoachOpen, setAskCoachOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResultCount, setSearchResultCount] = useState(0);
+  const [draftMessages, setDraftMessages] = useState<Map<string, string>>(new Map());
+  const [draftingId, setDraftingId] = useState<string | null>(null);
   const systemPromptRef = useRef("");
 
+  // Build system prompt on load
   useEffect(() => {
     try {
       const raw = localStorage.getItem("navox-network-data");
@@ -59,32 +61,33 @@ export default function Home() {
         filename: "Connections.csv",
         generatedAt: new Date(stored.uploadedAt).toLocaleDateString("en-CA"),
       });
-
-      // Build coach context
       const ctx = buildAgentContext(stored.connections, stored.gapAnalysis);
       systemPromptRef.current = buildSystemPrompt(ctx);
-
-      // Load saved coach messages
-      const saved = loadCoachMessages();
-      if (saved.length > 0) {
-        setCoachMessages(saved);
-        coachInitSent.current = true;
-      }
     } catch {}
   }, []);
 
-  // Also build coach context when CSV is freshly parsed
-  const buildCoachContext = useCallback((conns: Connection[], gaps: GapAnalysis) => {
-    const ctx = buildAgentContext(conns, gaps);
-    systemPromptRef.current = buildSystemPrompt(ctx);
-  }, []);
+  // Rebuild system prompt with navigation context for AskCoach
+  const currentSystemPrompt = useMemo(() => {
+    if (!systemPromptRef.current) return "";
+    const ctx: CoachContext = {
+      activeTab: activePanel,
+      selectedNode,
+      searchQuery,
+      searchResultCount,
+      gapAnalysis,
+    };
+    return systemPromptRef.current + "\n\n" + buildContextSection(ctx);
+  }, [activePanel, selectedNode, searchQuery, searchResultCount, gapAnalysis]);
 
-  // Save coach messages
-  useEffect(() => {
-    if (coachMessages.length > 0) {
-      saveCoachMessages(coachMessages);
-    }
-  }, [coachMessages]);
+  // CoachBar insight (computed client-side, instant)
+  const barInsight = useMemo(() => {
+    return getBarInsight(activePanel, selectedNode, gapAnalysis, searchQuery, searchResultCount);
+  }, [activePanel, selectedNode, gapAnalysis, searchQuery, searchResultCount]);
+
+  const handleSearchChange = useCallback((query: string, resultCount: number) => {
+    setSearchQuery(query);
+    setSearchResultCount(resultCount);
+  }, []);
 
   const handleFile = useCallback((file: File) => {
     setIsLoading(true);
@@ -124,7 +127,8 @@ export default function Home() {
             gapAnalysis: gaps,
             uploadedAt: new Date().toISOString(),
           }));
-          buildCoachContext(parsed, gaps);
+          const ctx = buildAgentContext(parsed, gaps);
+          systemPromptRef.current = buildSystemPrompt(ctx);
         } catch (e) {
           setError("Failed to parse CSV. Please export a fresh copy from LinkedIn Settings → Data Privacy → Connections.");
         } finally {
@@ -136,7 +140,7 @@ export default function Home() {
         setIsLoading(false);
       },
     });
-  }, [buildCoachContext]);
+  }, []);
 
   const handleReset = () => {
     setConnections([]);
@@ -147,106 +151,58 @@ export default function Home() {
     setCsvMeta(null);
     setError(null);
     setActivePanel("graph");
+    setDraftMessages(new Map());
     localStorage.removeItem("navox-network-data");
   };
 
-  // Coach: send message
-  const sendCoachMessage = useCallback(async (text: string) => {
-    if (!systemPromptRef.current || isStreaming) return;
+  // Draft message via AI (on-demand, cached)
+  const handleDraftMessage = useCallback(async (conn: Connection) => {
+    if (draftMessages.has(conn.id) || draftingId) return;
 
-    const userMessage: ChatMessage = { role: "user", content: text };
-    const newMessages = [...coachMessages, userMessage];
-    setCoachMessages(newMessages);
-    setIsStreaming(true);
-
+    setDraftingId(conn.id);
     try {
+      const prompt = getDraftPrompt(conn);
       const res = await fetch("/coach/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: newMessages, systemPrompt: systemPromptRef.current }),
+        body: JSON.stringify({
+          messages: [{ role: "user", content: prompt }],
+          systemPrompt: "You are a professional networking message writer. Write ONLY the message body. No commentary.",
+        }),
       });
 
-      if (!res.ok) throw new Error("API request failed");
+      if (!res.ok) throw new Error("Failed");
       const reader = res.body?.getReader();
       if (!reader) throw new Error("No reader");
 
       const decoder = new TextDecoder();
-      let assistantContent = "";
-      setCoachMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+      let content = "";
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        assistantContent += decoder.decode(value, { stream: true });
-        const content = assistantContent;
-        setCoachMessages((prev) => {
-          const updated = [...prev];
-          updated[updated.length - 1] = { role: "assistant", content };
-          return updated;
-        });
+        content += decoder.decode(value, { stream: true });
+        setDraftMessages((prev) => new Map(prev).set(conn.id, content));
       }
-
-      if (!coachOpen) setHasNotification(true);
-    } catch (err) {
-      console.error("Coach error:", err);
-      setCoachMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: "Sorry, something went wrong. Please try again." },
-      ]);
+    } catch {
+      setDraftMessages((prev) => new Map(prev).set(conn.id, "Failed to generate. Try again."));
     } finally {
-      setIsStreaming(false);
+      setDraftingId(null);
     }
-  }, [isStreaming, coachMessages, coachOpen]);
+  }, [draftMessages, draftingId]);
 
-  // Coach: auto-trigger initial debrief on first open
-  const handleCoachOpen = useCallback(() => {
-    setCoachOpen(true);
-    setHasNotification(false);
-
-    if (coachMessages.length === 0 && !coachInitSent.current && systemPromptRef.current) {
-      coachInitSent.current = true;
-      const init = async () => {
-        setIsStreaming(true);
-        try {
-          const initMessages: ChatMessage[] = [
-            { role: "user", content: "Hi coach, I just uploaded my network. What should I know?" },
-          ];
-          setCoachMessages(initMessages);
-
-          const res = await fetch("/coach/api/chat", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ messages: initMessages, systemPrompt: systemPromptRef.current }),
-          });
-
-          if (!res.ok) throw new Error("API request failed");
-          const reader = res.body?.getReader();
-          if (!reader) throw new Error("No reader");
-
-          const decoder = new TextDecoder();
-          let assistantContent = "";
-          setCoachMessages((prev) => [...prev, { role: "assistant", content: "" }]);
-
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            assistantContent += decoder.decode(value, { stream: true });
-            const content = assistantContent;
-            setCoachMessages((prev) => {
-              const updated = [...prev];
-              updated[updated.length - 1] = { role: "assistant", content };
-              return updated;
-            });
-          }
-        } catch (err) {
-          console.error("Coach init error:", err);
-        } finally {
-          setIsStreaming(false);
-        }
-      };
-      init();
+  // CoachBar action handler
+  const handleCoachAction = useCallback((action: string) => {
+    switch (action) {
+      case "switch-gaps": setActivePanel("gaps"); break;
+      case "switch-queue": setActivePanel("queue"); break;
+      case "switch-search": setActivePanel("search"); break;
+      case "switch-graph": setActivePanel("graph"); break;
+      case "draft-message":
+        if (selectedNode) handleDraftMessage(selectedNode);
+        break;
     }
-  }, [coachMessages.length]);
+  }, [selectedNode, handleDraftMessage]);
 
   if (!graphData || !gapAnalysis) {
     return (
@@ -269,6 +225,12 @@ export default function Home() {
         onReset={handleReset}
       />
 
+      <CoachBar
+        insight={barInsight}
+        onAction={handleCoachAction}
+        onAskCoach={() => setAskCoachOpen(true)}
+      />
+
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
         {/* Graph always mounted, visibility toggled so force sim state persists */}
         <div style={{
@@ -283,12 +245,19 @@ export default function Home() {
             highlightedIds={highlightedIds}
             selectedNode={selectedNode}
             onSelectNode={setSelectedNode}
+            onDraftMessage={handleDraftMessage}
+            draftMessages={draftMessages}
+            draftingId={draftingId}
           />
         </div>
 
         {activePanel === "gaps" && (
           <div style={{ flex: 1, overflow: "hidden" }}>
-            <GapPanel gapAnalysis={gapAnalysis} connections={connections} />
+            <GapPanel
+              gapAnalysis={gapAnalysis}
+              connections={connections}
+              onSwitchToSearch={(query) => { setActivePanel("search"); }}
+            />
           </div>
         )}
 
@@ -299,29 +268,25 @@ export default function Home() {
               onHighlight={(ids) => setHighlightedIds(ids)}
               onSelectNode={setSelectedNode}
               onSwitchToGraph={() => setActivePanel("graph")}
+              onSearchChange={handleSearchChange}
             />
           </div>
         )}
 
         {activePanel === "queue" && (
           <div style={{ flex: 1, overflow: "hidden" }}>
-            <OutreachQueue connections={connections} gapAnalysis={gapAnalysis} />
+            <OutreachQueue
+              connections={connections}
+              gapAnalysis={gapAnalysis}
+            />
           </div>
         )}
       </div>
 
-      {/* Coach overlay */}
-      <CoachBubble
-        onClick={handleCoachOpen}
-        hasNotification={hasNotification}
-        panelOpen={coachOpen}
-      />
-      <CoachPanel
-        isOpen={coachOpen}
-        onClose={() => setCoachOpen(false)}
-        messages={coachMessages}
-        onSendMessage={sendCoachMessage}
-        isStreaming={isStreaming}
+      <AskCoachDialog
+        isOpen={askCoachOpen}
+        onClose={() => setAskCoachOpen(false)}
+        systemPrompt={currentSystemPrompt}
       />
     </div>
   );

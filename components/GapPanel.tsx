@@ -2,6 +2,8 @@
 
 import { AlertTriangle, TrendingUp, Users, Zap } from "lucide-react";
 import type { GapAnalysis, Connection, RoleCategory } from "@/lib/tieStrength";
+import { getGapActionData } from "@/lib/coachInsights";
+import { GapCoachCard } from "@/components/CoachCard";
 
 const ROLE_COLORS: Record<string, string> = {
   "Engineers/Devs": "#6366f1",
@@ -17,9 +19,10 @@ const ROLE_COLORS: Record<string, string> = {
 interface Props {
   gapAnalysis: GapAnalysis;
   connections: Connection[];
+  onSwitchToSearch?: (query: string) => void;
 }
 
-export default function GapPanel({ gapAnalysis, connections }: Props) {
+export default function GapPanel({ gapAnalysis, connections, onSwitchToSearch }: Props) {
   const {
     totalConnections, avgTieStrength, bridgingCapitalScore,
     bondingCapitalScore, rolePercentages, gaps,
@@ -38,6 +41,15 @@ export default function GapPanel({ gapAnalysis, connections }: Props) {
       flexDirection: "column",
       gap: 20,
     }}>
+      {/* Coach Action Card */}
+      {(() => {
+        const gapAction = getGapActionData(gapAnalysis);
+        if (gapAction && onSwitchToSearch) {
+          return <GapCoachCard data={gapAction} onSearchRole={onSwitchToSearch} />;
+        }
+        return null;
+      })()}
+
       {/* Header */}
       <div>
         <h2 style={{ fontSize: 20, fontWeight: 600, color: "var(--text-primary)", marginBottom: 4 }}>

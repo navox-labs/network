@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Search, ExternalLink, ArrowRight, Building2 } from "lucide-react";
 import { searchByCompany, type Connection } from "@/lib/tieStrength";
 
@@ -9,14 +9,19 @@ interface Props {
   onHighlight: (ids: Set<string>) => void;
   onSelectNode: (c: Connection) => void;
   onSwitchToGraph: () => void;
+  onSearchChange?: (query: string, resultCount: number) => void;
 }
 
-export default function CompanySearch({ connections, onHighlight, onSelectNode, onSwitchToGraph }: Props) {
+export default function CompanySearch({ connections, onHighlight, onSelectNode, onSwitchToGraph, onSearchChange }: Props) {
   const [query, setQuery] = useState("");
 
   const results = useMemo(() => {
     return searchByCompany(connections, query);
   }, [connections, query]);
+
+  useEffect(() => {
+    onSearchChange?.(query, results.length);
+  }, [query, results.length, onSearchChange]);
 
   const handleSelect = (conn: Connection) => {
     onSelectNode(conn);

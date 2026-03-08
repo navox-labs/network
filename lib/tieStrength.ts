@@ -54,6 +54,7 @@ export interface Connection {
   position: string;
   connectedOn: string; // ISO date string
   email?: string;
+  url?: string;
   tieStrength: number;
   tieCategory: "strong" | "moderate" | "weak" | "dormant";
   roleCategory: RoleCategory;
@@ -247,6 +248,7 @@ export interface RawCSVRow {
   Company?: string;
   Position?: string;
   "Connected On"?: string;
+  URL?: string;
   [key: string]: string | undefined;
 }
 
@@ -261,6 +263,7 @@ export function parseLinkedInCSV(rows: RawCSVRow[]): Connection[] {
       const position = (row["Position"] || "").trim();
       const connectedOn = (row["Connected On"] || "").trim();
       const email = (row["Email Address"] || "").trim();
+      const url = (row["URL"] || "").trim() || undefined;
 
       const roleCategory = classifyRole(position);
       const tieStrength = calculateTieStrength(connectedOn, roleCategory);
@@ -286,6 +289,7 @@ export function parseLinkedInCSV(rows: RawCSVRow[]): Connection[] {
         position,
         connectedOn,
         email,
+        url,
         tieStrength,
         tieCategory,
         roleCategory,

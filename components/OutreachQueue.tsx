@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { Zap, Copy, CheckCircle, ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
 import type { Connection, GapAnalysis } from "@/lib/tieStrength";
+import { getWeeklyPlan } from "@/lib/coachInsights";
+import { WeeklyPlanCard } from "@/components/CoachCard";
 
 interface Props {
   connections: Connection[];
@@ -32,6 +34,8 @@ export default function OutreachQueue({ connections, gapAnalysis }: Props) {
     navigator.clipboard.writeText(msg).then(() => {
       setCopiedId(conn.id);
       setTimeout(() => setCopiedId(null), 2000);
+      const url = conn.url || linkedInSearch(conn.name);
+      window.open(url, "_blank", "noopener,noreferrer");
     });
   };
 
@@ -48,6 +52,9 @@ export default function OutreachQueue({ connections, gapAnalysis }: Props) {
 
   return (
     <div style={{ height: "100%", overflow: "auto", padding: "24px", display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* Weekly Plan Coach Card */}
+      <WeeklyPlanCard targets={getWeeklyPlan(gapAnalysis)} />
+
       {/* Header */}
       <div>
         <h2 style={{ fontSize: 20, fontWeight: 600, color: "var(--text-primary)", marginBottom: 4 }}>
@@ -172,7 +179,7 @@ export default function OutreachQueue({ connections, gapAnalysis }: Props) {
                     {copiedId === conn.id ? <CheckCircle size={13} color="var(--strong)" /> : <Copy size={13} />}
                   </button>
                   <a
-                    href={linkedInSearch(conn.name)}
+                    href={conn.url || linkedInSearch(conn.name)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="btn btn-ghost"

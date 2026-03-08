@@ -1,11 +1,9 @@
 "use client";
 
-import { useRef, useCallback, useState, useEffect } from "react";
-import dynamic from "next/dynamic";
+import React, { useRef, useCallback, useState, useEffect } from "react";
 import type { Connection, GraphData, GraphNode, RoleCategory } from "@/lib/tieStrength";
-
-// Dynamic import — react-force-graph-2d uses canvas and can't SSR
-const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), { ssr: false });
+import { getNodeCoachData } from "@/lib/coachInsights";
+import { NodeCoachCard } from "@/components/CoachCard";
 
 const ROLE_COLORS: Record<RoleCategory, string> = {
   "Self":           "#6c4bf4",
@@ -39,6 +37,9 @@ interface Props {
   highlightedIds: Set<string>;
   selectedNode: Connection | null;
   onSelectNode: (c: Connection | null) => void;
+  onDraftMessage?: (conn: Connection) => void;
+  draftMessages?: Map<string, string>;
+  draftingId?: string | null;
 }
 
 interface TooltipState {
@@ -47,13 +48,23 @@ interface TooltipState {
   node: GraphNode;
 }
 
-export default function GraphView({ graphData, connections, highlightedIds, selectedNode, onSelectNode }: Props) {
+export default function GraphView({ graphData, connections, highlightedIds, selectedNode, onSelectNode, onDraftMessage, draftMessages, draftingId }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const fgRef = useRef<any>(null);
+  const hasZoomed = useRef(false);
+  const [ForceGraph2D, setForceGraph2D] = useState<any>(null);
   const [dimensions, setDimensions] = useState({ w: 800, h: 600 });
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [filterRole, setFilterRole] = useState<RoleCategory | null>(null);
   const [filterTie, setFilterTie] = useState<string | null>(null);
+
+  // Lazy load react-force-graph-2d on client (bypasses next/dynamic ref issues)
+  useEffect(() => {
+    import("react-force-graph-2d").then(mod => {
+      setForceGraph2D(() => mod.default);
+    });
+  }, []);
 
   useEffect(() => {
     const obs = new ResizeObserver((entries) => {
@@ -267,34 +278,25 @@ export default function GraphView({ graphData, connections, highlightedIds, sele
             )}
           </div>
 
-          <div style={{
-            marginTop: 12, padding: "8px 12px",
-            background: "var(--bg-card)",
-            border: "1px solid var(--border)",
-            borderRadius: 6,
-            fontSize: 12, color: "var(--text-secondary)",
-            lineHeight: 1.5,
-          }}>
-            <strong style={{ color: "var(--text-primary)" }}>Activation: </strong>
-            {selectedNode.tieCategory === "strong"
-              ? "Direct outreach — you know each other well."
-              : selectedNode.tieCategory === "moderate"
-              ? "Brief reconnect first, then request intro or insight."
-              : selectedNode.tieCategory === "weak"
-              ? "High bridging value. Ask a mutual connection for an intro, or reference shared context directly."
-              : "Dormant. Re-activate with a genuine value-add message before any ask."}
-          </div>
+          <NodeCoachCard
+            connection={selectedNode}
+            coachData={getNodeCoachData(selectedNode)}
+            onDraftMessage={onDraftMessage || (() => {})}
+            draftMessage={draftMessages?.get(selectedNode.id) ?? null}
+            isDrafting={draftingId === selectedNode.id}
+          />
 
           <div style={{ marginTop: 10, fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
             Connected {selectedNode.daysSinceConnected} days ago
-            {" · "}Priority score: {selectedNode.activationPriority}
+            {" · "}Priority score: {Math.round(selectedNode.activationPriority * 100)}%
           </div>
         </div>
       )}
 
       {/* Canvas */}
-      {typeof window !== "undefined" && (
+      {ForceGraph2D && (
         <ForceGraph2D
+          ref={fgRef}
           graphData={graphData as any}
           width={dimensions.w}
           height={dimensions.h}
@@ -305,17 +307,23 @@ export default function GraphView({ graphData, connections, highlightedIds, sele
           nodeCanvasObjectMode={() => "replace"}
           linkColor={linkColor}
           linkWidth={linkWidth}
-          onNodeHover={(node, event) => handleNodeHover(node as any, event as any)}
-          onNodeClick={(node) => handleNodeClick(node as any)}
+          onNodeHover={(node: any, event: any) => handleNodeHover(node, event)}
+          onNodeClick={(node: any) => handleNodeClick(node)}
           linkDirectionalParticles={0}
           d3AlphaDecay={0.015}
           d3VelocityDecay={0.3}
-          cooldownTicks={200}
+          warmupTicks={100}
+          cooldownTime={0}
+          onEngineStop={() => {
+            if (!hasZoomed.current) {
+              hasZoomed.current = true;
+              fgRef.current?.zoomToFit(400, 60);
+            }
+          }}
           enableNodeDrag={true}
           enableZoomInteraction={true}
           minZoom={0.2}
           maxZoom={8}
-
         />
       )}
 
