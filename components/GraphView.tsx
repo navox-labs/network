@@ -236,7 +236,7 @@ export default function GraphView({ graphData, connections, highlightedIds, sele
 
         <div style={{ borderTop: "1px solid var(--border)", marginTop: 8, paddingTop: 8 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--text-muted)" }}>
-            <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--strong)" }} />
+            <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--moderate)" }} />
             <span>= Bridge node</span>
           </div>
         </div>
@@ -340,7 +340,7 @@ export default function GraphView({ graphData, connections, highlightedIds, sele
             Tie strength: {Math.round(tooltip.node.tieStrength * 100)}%
           </div>
           {tooltip.node.isBridge && (
-            <div style={{ fontSize: 11, color: "var(--strong)", marginTop: 2 }}>Bridge node</div>
+            <div style={{ fontSize: 11, color: "var(--moderate)", marginTop: 2 }}>Bridge node</div>
           )}
         </div>
       )}
