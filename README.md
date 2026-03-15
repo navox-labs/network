@@ -180,7 +180,8 @@ Full citation list in the companion research paper: [The Invisible Network (Yous
 
 ## Related
 
-- [navox.tech](https://navox.tech) — Your AI-powered profileCard that recruiters can chat with
+- [Navox Coach](https://github.com/navox-labs/coach) — AI coaching agent that plugs into your network analysis
+- [navox.tech](https://navox.tech) — Create a customized AI voice-driven professional profile card to replace your resume — paste the link directly in your outreach messages
 
 ---
 
