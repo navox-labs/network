@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Copy, CheckCircle, Sparkles, ArrowRight, AlertTriangle } from "lucide-react";
 import type { Connection } from "@/lib/tieStrength";
 import type { NodeCoachData, GapActionData, WeeklyTarget } from "@/lib/coachInsights";
+import { DRAFT_NO_KEY } from "@/lib/aiClient";
 
 // ── Node Coach Card (for GraphView) ─────────────────────────────────────
 
@@ -13,9 +14,10 @@ interface NodeCardProps {
   onDraftMessage: (conn: Connection) => void;
   draftMessage: string | null;
   isDrafting: boolean;
+  onOpenSettings?: () => void;
 }
 
-export function NodeCoachCard({ connection, coachData, onDraftMessage, draftMessage, isDrafting }: NodeCardProps) {
+export function NodeCoachCard({ connection, coachData, onDraftMessage, draftMessage, isDrafting, onOpenSettings }: NodeCardProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
@@ -74,7 +76,25 @@ export function NodeCoachCard({ connection, coachData, onDraftMessage, draftMess
         </div>
       )}
 
-      {draftMessage && (
+      {draftMessage === DRAFT_NO_KEY && (
+        <div style={{ textAlign: "center", padding: "4px 0" }}>
+          <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 8, lineHeight: 1.5 }}>
+            Add your API key to use Coach
+          </div>
+          <button
+            onClick={onOpenSettings}
+            className="btn btn-primary"
+            style={{ fontSize: 11, padding: "5px 14px", width: "100%" }}
+          >
+            Open Settings
+          </button>
+          <div style={{ marginTop: 6, fontSize: 10, color: "var(--text-muted)" }}>
+            Supports OpenAI and Anthropic keys.
+          </div>
+        </div>
+      )}
+
+      {draftMessage && draftMessage !== DRAFT_NO_KEY && (
         <div>
           <div style={{
             padding: "8px 10px",

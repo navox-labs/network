@@ -1,6 +1,6 @@
 "use client";
 
-import { Rabbit, Network, BarChart3, Search, Zap, RotateCcw } from "lucide-react";
+import { Rabbit, Network, BarChart3, Search, Zap, RotateCcw, Settings } from "lucide-react";
 import type { Connection, GapAnalysis } from "@/lib/tieStrength";
 import type { ActivePanel } from "@/app/page";
 import Link from "next/link";
@@ -12,6 +12,7 @@ interface Props {
   setActivePanel: (p: ActivePanel) => void;
   csvMeta: { filename: string; generatedAt: string } | null;
   onReset: () => void;
+  onOpenSettings: () => void;
 }
 
 const PANELS: { id: ActivePanel; label: string; icon: React.ReactNode; desc: string }[] = [
@@ -21,7 +22,7 @@ const PANELS: { id: ActivePanel; label: string; icon: React.ReactNode; desc: str
   { id: "queue",  label: "Outreach Queue",  icon: <Zap size={14} />,       desc: "Who to activate this week" },
 ];
 
-export default function TopBar({ connections, gapAnalysis, activePanel, setActivePanel, csvMeta, onReset }: Props) {
+export default function TopBar({ connections, gapAnalysis, activePanel, setActivePanel, csvMeta, onReset, onOpenSettings }: Props) {
   const weakCount = connections.filter(c => c.tieCategory === "weak").length;
 
   return (
@@ -106,6 +107,16 @@ export default function TopBar({ connections, gapAnalysis, activePanel, setActiv
           </button>
         </div>
       )}
+
+      {/* Settings */}
+      <button
+        className="btn btn-ghost"
+        onClick={onOpenSettings}
+        style={{ padding: "4px 8px", fontSize: 11, height: 28, marginLeft: csvMeta ? 4 : 16 }}
+        title="AI Settings"
+      >
+        <Settings size={13} />
+      </button>
     </div>
   );
 }

@@ -15,6 +15,7 @@ import { buildAgentContext } from "@/lib/agentContext";
 import { buildSystemPrompt } from "@/lib/systemPrompt";
 import { buildContextSection, type CoachContext } from "@/lib/coachContext";
 import { getBarInsight, getDraftPrompt } from "@/lib/coachInsights";
+import { getAIConfig, streamAIResponse, DRAFT_NO_KEY } from "@/lib/aiClient";
 
 import UploadScreen from "@/components/UploadScreen";
 import TopBar from "@/components/TopBar";
@@ -24,6 +25,7 @@ import CompanySearch from "@/components/CompanySearch";
 import OutreachQueue from "@/components/OutreachQueue";
 import CoachBar from "@/components/CoachBar";
 import AskCoachDialog from "@/components/AskCoachDialog";
+import SettingsDialog from "@/components/SettingsDialog";
 
 export type ActivePanel = "graph" | "gaps" | "search" | "queue";
 
@@ -38,13 +40,15 @@ export default function Home() {
   const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
   const [csvMeta, setCsvMeta] = useState<{ filename: string; generatedAt: string } | null>(null);
 
-  // Coach state (lightweight — no chat)
+  // Coach state
   const [askCoachOpen, setAskCoachOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResultCount, setSearchResultCount] = useState(0);
   const [draftMessages, setDraftMessages] = useState<Map<string, string>>(new Map());
   const [draftingId, setDraftingId] = useState<string | null>(null);
   const systemPromptRef = useRef("");
+  const draftAbortRef = useRef<AbortController | null>(null);
 
   // Build system prompt on load
   useEffect(() => {
@@ -159,41 +163,34 @@ export default function Home() {
   const handleDraftMessage = useCallback(async (conn: Connection) => {
     if (draftMessages.has(conn.id) || draftingId) return;
 
+    const config = getAIConfig();
+    if (!config) {
+      setDraftMessages((prev) => new Map(prev).set(conn.id, DRAFT_NO_KEY));
+      return;
+    }
+
+    // Abort any previous draft stream
+    draftAbortRef.current?.abort();
+    const controller = new AbortController();
+    draftAbortRef.current = controller;
+
     setDraftingId(conn.id);
     try {
       const prompt = getDraftPrompt(conn);
-      const coachKey = localStorage.getItem("navox-coach-key") || "";
-      const res = await fetch("/coach/api/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(coachKey && { "x-coach-key": coachKey }),
-        },
-        body: JSON.stringify({
-          messages: [{ role: "user", content: prompt }],
-          systemPrompt: "You are a professional networking message writer. Write ONLY the message body. No commentary.",
-        }),
-      });
-
-      if (res.status === 401) {
-        setDraftMessages((prev) => new Map(prev).set(conn.id, "Access key required. DM me on LinkedIn for the key: linkedin.com/in/nahrinoda"));
-        return;
-      }
-      if (!res.ok) throw new Error("Failed");
-      const reader = res.body?.getReader();
-      if (!reader) throw new Error("No reader");
-
-      const decoder = new TextDecoder();
       let content = "";
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        content += decoder.decode(value, { stream: true });
+      for await (const chunk of streamAIResponse(
+        config,
+        [{ role: "user", content: prompt }],
+        "You are a professional networking message writer. Write ONLY the message body. No commentary.",
+        controller.signal
+      )) {
+        content += chunk;
         setDraftMessages((prev) => new Map(prev).set(conn.id, content));
       }
-    } catch {
-      setDraftMessages((prev) => new Map(prev).set(conn.id, "Failed to generate. Try again."));
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      setDraftMessages((prev) => new Map(prev).set(conn.id, "Failed to generate. Check your API key and try again."));
     } finally {
       setDraftingId(null);
     }
@@ -231,6 +228,7 @@ export default function Home() {
         setActivePanel={setActivePanel}
         csvMeta={csvMeta}
         onReset={handleReset}
+        onOpenSettings={() => setSettingsOpen(true)}
       />
 
       <CoachBar
@@ -256,6 +254,7 @@ export default function Home() {
             onDraftMessage={handleDraftMessage}
             draftMessages={draftMessages}
             draftingId={draftingId}
+            onOpenSettings={() => setSettingsOpen(true)}
           />
         </div>
 
@@ -295,6 +294,12 @@ export default function Home() {
         isOpen={askCoachOpen}
         onClose={() => setAskCoachOpen(false)}
         systemPrompt={currentSystemPrompt}
+        onOpenSettings={() => setSettingsOpen(true)}
+      />
+
+      <SettingsDialog
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
       />
     </div>
   );

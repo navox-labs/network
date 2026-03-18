@@ -1,76 +1,68 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { X, Sparkles, Send, Lock } from "lucide-react";
+import { X, Sparkles, Send } from "lucide-react";
+import { getAIConfig, streamAIResponse } from "@/lib/aiClient";
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   systemPrompt: string;
+  onOpenSettings: () => void;
 }
 
-export default function AskCoachDialog({ isOpen, onClose, systemPrompt }: Props) {
+export default function AskCoachDialog({ isOpen, onClose, systemPrompt, onOpenSettings }: Props) {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [needsKey, setNeedsKey] = useState(false);
-  const [keyInput, setKeyInput] = useState("");
-  const pendingQuestion = useRef<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const keyInputRef = useRef<HTMLInputElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const config = isOpen ? getAIConfig() : null;
+  const hasKey = config !== null;
 
   useEffect(() => {
     if (isOpen) {
       setQuestion("");
       setAnswer("");
       setTimeout(() => inputRef.current?.focus(), 100);
+    } else {
+      // Abort any in-flight stream when dialog closes
+      abortRef.current?.abort();
+      abortRef.current = null;
     }
   }, [isOpen]);
 
-  useEffect(() => {
-    if (needsKey) setTimeout(() => keyInputRef.current?.focus(), 100);
-  }, [needsKey]);
-
   const sendQuestion = useCallback(async (q: string) => {
+    const aiConfig = getAIConfig();
+    if (!aiConfig) return;
+
+    // Abort previous stream if still running
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setIsLoading(true);
     setAnswer("");
     setQuestion("");
 
     try {
-      const coachKey = localStorage.getItem("navox-coach-key") || "";
-      const res = await fetch("/coach/api/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(coachKey && { "x-coach-key": coachKey }),
-        },
-        body: JSON.stringify({
-          messages: [{ role: "user", content: q }],
-          systemPrompt: systemPrompt + "\n\nKeep your response concise and actionable. If the question is about external topics (companies, roles, skills), search the web and provide real information. If relevant, connect your answer back to the user's network data.",
-        }),
-      });
+      const enhancedPrompt = systemPrompt +
+        "\n\nKeep your response concise and actionable. If the question is about external topics (companies, roles, skills), provide real information. If relevant, connect your answer back to the user's network data.";
 
-      if (res.status === 401) {
-        pendingQuestion.current = q;
-        setNeedsKey(true);
-        setIsLoading(false);
-        return;
-      }
-      if (!res.ok) throw new Error("Failed");
-      const reader = res.body?.getReader();
-      if (!reader) throw new Error("No reader");
-
-      const decoder = new TextDecoder();
       let content = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        content += decoder.decode(value, { stream: true });
+      for await (const chunk of streamAIResponse(
+        aiConfig,
+        [{ role: "user", content: q }],
+        enhancedPrompt,
+        controller.signal
+      )) {
+        content += chunk;
         setAnswer(content);
       }
-    } catch {
-      setAnswer("Sorry, couldn't reach the coach. Make sure the coach API is running.");
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      setAnswer("Sorry, couldn't reach the AI provider. Check your API key and try again.");
     } finally {
       setIsLoading(false);
     }
@@ -80,19 +72,6 @@ export default function AskCoachDialog({ isOpen, onClose, systemPrompt }: Props)
     const q = question.trim();
     if (!q || isLoading || !systemPrompt) return;
     sendQuestion(q);
-  };
-
-  const handleKeySubmit = () => {
-    const key = keyInput.trim();
-    if (!key) return;
-    localStorage.setItem("navox-coach-key", key);
-    setNeedsKey(false);
-    setKeyInput("");
-    if (pendingQuestion.current) {
-      const q = pendingQuestion.current;
-      pendingQuestion.current = null;
-      sendQuestion(q);
-    }
   };
 
   if (!isOpen) return null;
@@ -135,6 +114,19 @@ export default function AskCoachDialog({ isOpen, onClose, systemPrompt }: Props)
             <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-primary)", letterSpacing: "0.03em" }}>
               Ask Coach
             </span>
+            {hasKey && (
+              <span style={{
+                fontSize: 10,
+                color: "var(--text-muted)",
+                fontFamily: "var(--font-mono)",
+                padding: "1px 6px",
+                background: "var(--bg-card)",
+                borderRadius: 4,
+                border: "1px solid var(--border)",
+              }}>
+                via {config!.provider === "openai" ? "OpenAI" : "Anthropic"}
+              </span>
+            )}
           </div>
           <button
             onClick={onClose}
@@ -148,51 +140,29 @@ export default function AskCoachDialog({ isOpen, onClose, systemPrompt }: Props)
           </button>
         </div>
 
-        {/* Passphrase prompt */}
-        {needsKey && (
-          <div style={{ padding: "16px" }}>
+        {/* No key prompt */}
+        {!hasKey && (
+          <div style={{ padding: "24px 16px", textAlign: "center" }}>
             <div style={{
-              display: "flex", alignItems: "center", gap: 8, marginBottom: 10,
-              color: "var(--text-secondary)", fontSize: 13,
+              fontSize: 13, color: "var(--text-secondary)", marginBottom: 12, lineHeight: 1.5,
             }}>
-              <Lock size={14} />
-              <span>Enter the access key to use Coach</span>
+              Add your API key to use Coach
             </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input
-                ref={keyInputRef}
-                type="password"
-                placeholder="Access key"
-                value={keyInput}
-                onChange={(e) => setKeyInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") handleKeySubmit(); }}
-                style={{ flex: 1 }}
-              />
-              <button
-                onClick={handleKeySubmit}
-                disabled={!keyInput.trim()}
-                className="btn btn-primary"
-                style={{ padding: "7px 12px", opacity: !keyInput.trim() ? 0.5 : 1 }}
-              >
-                Unlock
-              </button>
-            </div>
-            <div style={{ marginTop: 10, fontSize: 12, color: "var(--text-muted)" }}>
-              Need the access key?{" "}
-              <a
-                href="https://www.linkedin.com/in/nahrinoda/"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ color: "var(--accent)", textDecoration: "underline" }}
-              >
-                DM me on LinkedIn
-              </a>
+            <button
+              onClick={() => { onClose(); onOpenSettings(); }}
+              className="btn btn-primary"
+              style={{ fontSize: 12, padding: "7px 16px" }}
+            >
+              Open Settings
+            </button>
+            <div style={{ marginTop: 10, fontSize: 11, color: "var(--text-muted)" }}>
+              Supports OpenAI and Anthropic keys.
             </div>
           </div>
         )}
 
         {/* Answer */}
-        {!needsKey && (answer || isLoading) && (
+        {hasKey && (answer || isLoading) && (
           <div style={{
             padding: "16px 16px 0",
           }}>
@@ -218,7 +188,7 @@ export default function AskCoachDialog({ isOpen, onClose, systemPrompt }: Props)
         )}
 
         {/* Input */}
-        {!needsKey && (
+        {hasKey && (
           <div style={{ padding: "16px", display: "flex", gap: 8 }}>
             <input
               ref={inputRef}

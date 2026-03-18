@@ -40,6 +40,7 @@ interface Props {
   onDraftMessage?: (conn: Connection) => void;
   draftMessages?: Map<string, string>;
   draftingId?: string | null;
+  onOpenSettings?: () => void;
 }
 
 interface TooltipState {
@@ -48,7 +49,7 @@ interface TooltipState {
   node: GraphNode;
 }
 
-export default function GraphView({ graphData, connections, highlightedIds, selectedNode, onSelectNode, onDraftMessage, draftMessages, draftingId }: Props) {
+export default function GraphView({ graphData, connections, highlightedIds, selectedNode, onSelectNode, onDraftMessage, draftMessages, draftingId, onOpenSettings }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const fgRef = useRef<any>(null);
   const hasZoomed = useRef(false);
@@ -284,6 +285,7 @@ export default function GraphView({ graphData, connections, highlightedIds, sele
             onDraftMessage={onDraftMessage || (() => {})}
             draftMessage={draftMessages?.get(selectedNode.id) ?? null}
             isDrafting={draftingId === selectedNode.id}
+            onOpenSettings={onOpenSettings}
           />
 
           <div style={{ marginTop: 10, fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
