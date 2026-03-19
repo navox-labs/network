@@ -3,6 +3,7 @@
 import React, { useRef, useCallback, useState, useEffect } from "react";
 import type { Connection, GraphData, GraphNode, RoleCategory } from "@/lib/tieStrength";
 import { getNodeCoachData } from "@/lib/coachInsights";
+import { getConfidenceBadgeStyle, buildDataSourceString } from "@/lib/confidenceDisplay";
 import { NodeCoachCard } from "@/components/CoachCard";
 
 const ROLE_COLORS: Record<RoleCategory, string> = {
@@ -146,8 +147,12 @@ export default function GraphView({ graphData, connections, highlightedIds, sele
       return;
     }
 
+    // Confidence-based opacity: LOW nodes are subtly faded
+    const confidenceAlpha = node.confidenceLevel === "low" ? 0.7 : 1.0;
+
     // Regular node — semi-transparent fill with colored border
     const isDimmed = color.startsWith("rgba");
+    ctx.globalAlpha = confidenceAlpha;
     ctx.beginPath();
     ctx.arc(node.x!, node.y!, size, 0, 2 * Math.PI);
     // Stronger pastel fill so nodes are clearly visible
@@ -168,6 +173,18 @@ export default function GraphView({ graphData, connections, highlightedIds, sele
       ctx.lineWidth = 1.2;
     }
     ctx.stroke();
+
+    // HIGH confidence: subtle green outer ring
+    if (node.confidenceLevel === "high" && !isDimmed) {
+      ctx.beginPath();
+      ctx.arc(node.x!, node.y!, size + 2.5, 0, 2 * Math.PI);
+      ctx.strokeStyle = "rgba(34,197,94,0.35)";
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+    }
+
+    // Reset alpha after confidence modulation
+    ctx.globalAlpha = 1.0;
 
     // Bridge indicator: pulsing red dot
     if (node.isBridge && globalScale > 0.5) {
@@ -283,11 +300,18 @@ export default function GraphView({ graphData, connections, highlightedIds, sele
             <span className="badge" style={{ background: "rgba(107,114,128,0.08)", color: "var(--text-muted)" }}>
               {selectedNode.networkPosition}
             </span>
-            {selectedNode.confidenceLevel === "low" && (
-              <span className="badge" style={{ background: "rgba(217,150,10,0.08)", color: "var(--warning)" }}>
-                low confidence
-              </span>
-            )}
+            {(() => {
+              const badge = getConfidenceBadgeStyle(selectedNode.confidenceLevel);
+              return (
+                <span className="badge" style={{ background: badge.background, color: badge.color }}>
+                  {badge.label}
+                </span>
+              );
+            })()}
+          </div>
+
+          <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6, fontFamily: "var(--font-mono)" }}>
+            Based on: {buildDataSourceString(selectedNode)}
           </div>
 
           <NodeCoachCard

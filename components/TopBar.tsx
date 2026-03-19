@@ -24,6 +24,9 @@ const PANELS: { id: ActivePanel; label: string; icon: React.ReactNode; desc: str
 
 export default function TopBar({ connections, gapAnalysis, activePanel, setActivePanel, csvMeta, onReset, onOpenSettings }: Props) {
   const weakCount = connections.filter(c => c.tieCategory === "weak").length;
+  const highConf = connections.filter(c => c.confidenceLevel === "high").length;
+  const medConf = connections.filter(c => c.confidenceLevel === "medium").length;
+  const lowConf = connections.filter(c => c.confidenceLevel === "low").length;
 
   return (
     <div style={{
@@ -80,6 +83,7 @@ export default function TopBar({ connections, gapAnalysis, activePanel, setActiv
         <Stat label="connections" value={connections.length} />
         <Stat label="bridges" value={connections.filter(c => c.isBridge).length} color="var(--strong)" />
         <Stat label="weak ties" value={weakCount} color="var(--weak)" />
+        <Stat label="confidence" value={`${highConf}/${medConf}/${lowConf}`} color="var(--text-secondary)" />
         <Stat label="health" value={`${gapAnalysis.networkHealthScore}%`} color={
           gapAnalysis.networkHealthScore > 60 ? "var(--strong)"
           : gapAnalysis.networkHealthScore > 35 ? "var(--moderate)"
