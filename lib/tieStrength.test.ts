@@ -5,6 +5,7 @@ import {
   calculateTieStrength,
   tieCategoryFromStrength,
   assignConfidenceLevel,
+  enrichTieStrength,
   isBridgeConnection,
   detectBridges,
   classifyNetworkPosition,
@@ -15,6 +16,7 @@ import {
   type IndustryCluster,
   type RawCSVRow,
   type Connection,
+  type EnrichmentSignals,
 } from "./tieStrength";
 
 // ── Industry cluster classification ──────────────────────────────────────
@@ -145,19 +147,143 @@ describe("tieCategoryFromStrength", () => {
   });
 });
 
-// ── Confidence level ─────────────────────────────────────────────────────
+// ── Confidence level (3-tier) ────────────────────────────────────────────
 
 describe("assignConfidenceLevel", () => {
-  it("returns high for connections within 2 years", () => {
+  // Backwards-compatible: no enrichment data → date-based heuristic
+  it("returns high for connections within 2 years (no enrichment)", () => {
     expect(assignConfidenceLevel(0)).toBe("high");
     expect(assignConfidenceLevel(365)).toBe("high");
     expect(assignConfidenceLevel(729)).toBe("high");
   });
 
-  it("returns low for connections 2+ years old", () => {
+  it("returns low for connections 2+ years old (no enrichment)", () => {
     expect(assignConfidenceLevel(730)).toBe("low");
     expect(assignConfidenceLevel(1000)).toBe("low");
-    expect(assignConfidenceLevel(2000)).toBe("low");
+  });
+
+  // With enrichment data → data-availability model
+  it("returns high when bidirectional messages confirmed", () => {
+    const enrichment: EnrichmentSignals = { hasMessages: true, messageBidirectional: true };
+    expect(assignConfidenceLevel(1000, enrichment)).toBe("high");
+    expect(assignConfidenceLevel(100, enrichment)).toBe("high");
+  });
+
+  it("returns medium when one-way messages present", () => {
+    const enrichment: EnrichmentSignals = { hasMessages: true, messageBidirectional: false };
+    expect(assignConfidenceLevel(1000, enrichment)).toBe("medium");
+  });
+
+  it("returns medium when endorsement present but no messages", () => {
+    const enrichment: EnrichmentSignals = { hasEndorsement: true };
+    expect(assignConfidenceLevel(1000, enrichment)).toBe("medium");
+  });
+
+  it("returns medium when recommendation present", () => {
+    const enrichment: EnrichmentSignals = { hasRecommendation: true };
+    expect(assignConfidenceLevel(500, enrichment)).toBe("medium");
+  });
+
+  it("returns medium when invitation data present", () => {
+    const enrichment: EnrichmentSignals = { hasInvitation: true };
+    expect(assignConfidenceLevel(500, enrichment)).toBe("medium");
+  });
+
+  it("returns low when enrichment provided but empty", () => {
+    const enrichment: EnrichmentSignals = {};
+    expect(assignConfidenceLevel(100, enrichment)).toBe("low");
+    expect(assignConfidenceLevel(1000, enrichment)).toBe("low");
+  });
+});
+
+// ── Enriched tie strength ───────────────────────────────────────────────
+
+describe("enrichTieStrength", () => {
+  it("boosts tie strength for bidirectional messages", () => {
+    const base = 0.4;
+    const enriched = enrichTieStrength(base, {
+      messageBidirectional: true,
+      hasMessages: true,
+    });
+    expect(enriched).toBe(0.55); // 0.4 + 0.15
+  });
+
+  it("gives smaller boost for one-way messages", () => {
+    const base = 0.4;
+    const enriched = enrichTieStrength(base, {
+      hasMessages: true,
+      messageBidirectional: false,
+    });
+    expect(enriched).toBe(0.48); // 0.4 + 0.08
+  });
+
+  it("boosts for endorsement", () => {
+    const base = 0.5;
+    const enriched = enrichTieStrength(base, { hasEndorsement: true });
+    expect(enriched).toBe(0.55); // 0.5 + 0.05
+  });
+
+  it("boosts for recommendation", () => {
+    const base = 0.5;
+    const enriched = enrichTieStrength(base, { hasRecommendation: true });
+    expect(enriched).toBe(0.57); // 0.5 + 0.07
+  });
+
+  it("stacks multiple enrichment signals", () => {
+    const base = 0.4;
+    const enriched = enrichTieStrength(base, {
+      messageBidirectional: true,
+      hasMessages: true,
+      hasEndorsement: true,
+      hasRecommendation: true,
+    });
+    // 0.4 + 0.15 + 0.05 + 0.07 = 0.67
+    expect(enriched).toBe(0.67);
+  });
+
+  it("caps at 1.0", () => {
+    const base = 0.9;
+    const enriched = enrichTieStrength(base, {
+      messageBidirectional: true,
+      hasMessages: true,
+      hasEndorsement: true,
+      hasRecommendation: true,
+    });
+    expect(enriched).toBe(1.0);
+  });
+
+  it("adds recency bonus for recent messages", () => {
+    const base = 0.4;
+    const recentDate = new Date();
+    recentDate.setDate(recentDate.getDate() - 30); // 30 days ago
+
+    const enriched = enrichTieStrength(base, {
+      hasMessages: true,
+      messageBidirectional: false,
+      lastMessageDate: recentDate.toISOString(),
+    });
+    // 0.4 + 0.08 (one-way) + 0.02 (recency) = 0.50
+    expect(enriched).toBe(0.5);
+  });
+
+  it("no recency bonus for old messages", () => {
+    const base = 0.4;
+    const oldDate = new Date();
+    oldDate.setDate(oldDate.getDate() - 180); // 180 days ago
+
+    const enriched = enrichTieStrength(base, {
+      hasMessages: true,
+      messageBidirectional: false,
+      lastMessageDate: oldDate.toISOString(),
+    });
+    // 0.4 + 0.08 (one-way) only, no recency bonus
+    expect(enriched).toBe(0.48);
+  });
+
+  it("returns base unchanged when no enrichment signals", () => {
+    const base = 0.5;
+    const enriched = enrichTieStrength(base, {});
+    expect(enriched).toBe(0.5);
   });
 });
 

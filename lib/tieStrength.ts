@@ -290,6 +290,8 @@ export type NetworkPosition = "bridge" | "anchor" | "explorer" | "dormant";
 
 // ── Connection interface ──────────────────────────────────────────────────
 
+export type ConfidenceLevel = "high" | "medium" | "low";
+
 export interface Connection {
   id: string;
   name: string;
@@ -308,8 +310,15 @@ export interface Connection {
   industryCluster: IndustryCluster;
   isBridge: boolean;       // industry cluster appears ≤3 times in network
   networkPosition: NetworkPosition;
-  confidenceLevel: "high" | "low";
+  confidenceLevel: ConfidenceLevel;
   activationPriority: number; // 0–1, for outreach queue ranking
+  // Enrichment fields (populated when enrichment files are loaded)
+  messageCount?: number;
+  lastMessageDate?: string;
+  messageBidirectional?: boolean;
+  endorsementReceived?: boolean;
+  recommendationReceived?: boolean;
+  initiatedBy?: "user" | "them";
 }
 
 // ── Graph interfaces ──────────────────────────────────────────────────────
@@ -327,7 +336,14 @@ export interface GraphNode {
   daysSinceConnected: number;
   industryCluster: IndustryCluster;
   networkPosition: NetworkPosition;
-  confidenceLevel: "high" | "low";
+  confidenceLevel: ConfidenceLevel;
+  // Enrichment fields (mirrored from Connection for graph rendering)
+  messageCount?: number;
+  lastMessageDate?: string;
+  messageBidirectional?: boolean;
+  endorsementReceived?: boolean;
+  recommendationReceived?: boolean;
+  initiatedBy?: "user" | "them";
   // runtime graph fields
   x?: number;
   y?: number;
@@ -401,11 +417,98 @@ export function tieCategoryFromStrength(
 }
 
 // ── Confidence level ─────────────────────────────────────────────────────
+// Three-tier confidence based on data availability:
+//   HIGH   = connections + bidirectional messages matched
+//   MEDIUM = connections + at least one enrichment signal for this connection
+//   LOW    = connections only (no enrichment data)
+//
+// When no enrichment files are loaded, falls back to date-based heuristic
+// (connected < 2 years = high, else low) for backwards compatibility.
 
-export function assignConfidenceLevel(daysSinceConnected: number): "high" | "low" {
-  // HIGH = connected < 2 years (730 days) — recency signal is strong
-  // LOW = connected 2+ years — estimated only
+export interface EnrichmentSignals {
+  hasMessages?: boolean;
+  messageBidirectional?: boolean;
+  hasEndorsement?: boolean;
+  hasRecommendation?: boolean;
+  hasInvitation?: boolean;
+}
+
+export function assignConfidenceLevel(
+  daysSinceConnected: number,
+  enrichment?: EnrichmentSignals
+): ConfidenceLevel {
+  // If enrichment data is provided, use data-availability model
+  if (enrichment) {
+    if (enrichment.messageBidirectional) return "high";
+    if (
+      enrichment.hasMessages ||
+      enrichment.hasEndorsement ||
+      enrichment.hasRecommendation ||
+      enrichment.hasInvitation
+    ) {
+      return "medium";
+    }
+    return "low";
+  }
+
+  // Fallback: date-based heuristic (no enrichment files loaded)
   return daysSinceConnected < 730 ? "high" : "low";
+}
+
+// ── Enriched tie strength ───────────────────────────────────────────────
+// Additive adjustment layered on top of the base calculateTieStrength().
+// Base calculation remains unchanged — this only boosts when enrichment
+// data confirms interaction.
+//
+// Boosts:
+//   +0.15  bidirectional messages (confirmed active relationship)
+//   +0.08  one-way messages (partial interaction signal)
+//   +0.05  endorsement received (relationship depth)
+//   +0.07  recommendation received (strongest tie confirmation)
+//   +0.02  message recency bonus (last message within 90 days)
+//
+// Result is capped at 1.0.
+
+export function enrichTieStrength(
+  baseTieStrength: number,
+  enrichment: EnrichmentSignals & {
+    messageCount?: number;
+    lastMessageDate?: string;
+  }
+): number {
+  let boost = 0;
+
+  if (enrichment.messageBidirectional) {
+    boost += 0.15;
+  } else if (enrichment.hasMessages) {
+    boost += 0.08;
+  }
+
+  if (enrichment.hasEndorsement) {
+    boost += 0.05;
+  }
+
+  if (enrichment.hasRecommendation) {
+    boost += 0.07;
+  }
+
+  // Message recency bonus
+  if (enrichment.lastMessageDate) {
+    try {
+      const lastMsg = new Date(enrichment.lastMessageDate);
+      const daysSinceMsg = Math.floor(
+        (Date.now() - lastMsg.getTime()) / 86400000
+      );
+      if (daysSinceMsg < 90) {
+        boost += 0.02;
+      }
+    } catch {
+      // Invalid date — skip recency bonus
+    }
+  }
+
+  const raw = baseTieStrength + boost;
+  return Math.round(Math.min(1.0, Math.max(0.0, raw)) * 1000) / 1000;
 }
 
 // ── Industry cluster analysis ────────────────────────────────────────────
@@ -630,6 +733,13 @@ export function buildGraphData(connections: Connection[]): GraphData {
       industryCluster: c.industryCluster,
       networkPosition: c.networkPosition,
       confidenceLevel: c.confidenceLevel,
+      // Enrichment fields
+      messageCount: c.messageCount,
+      lastMessageDate: c.lastMessageDate,
+      messageBidirectional: c.messageBidirectional,
+      endorsementReceived: c.endorsementReceived,
+      recommendationReceived: c.recommendationReceived,
+      initiatedBy: c.initiatedBy,
     })),
   ];
 
@@ -752,12 +862,18 @@ export function analyzeGaps(connections: Connection[]): GapAnalysis {
       type: "confidence_note",
       label: "Data Confidence",
       value: `${connections.filter((c) => c.confidenceLevel === "high").length}/${total}`,
-      description: `${
-        connections.filter((c) => c.confidenceLevel === "high").length
-      } connections have high-confidence tie strength (connected within 2 years). The remaining ${
-        connections.filter((c) => c.confidenceLevel === "low").length
-      } are estimates based on older connection dates.`,
-      dataSource: "Estimated — LinkedIn does not export interaction frequency or message data.",
+      description: (() => {
+        const high = connections.filter((c) => c.confidenceLevel === "high").length;
+        const medium = connections.filter((c) => c.confidenceLevel === "medium").length;
+        const low = connections.filter((c) => c.confidenceLevel === "low").length;
+        if (medium > 0) {
+          return `${high} high confidence (messages confirmed), ${medium} medium (partial enrichment), ${low} connections only.`;
+        }
+        return `${high} connections have high-confidence tie strength (connected within 2 years). The remaining ${low} are estimates based on older connection dates.`;
+      })(),
+      dataSource: connections.some((c) => c.messageCount && c.messageCount > 0)
+        ? "Based on message interaction data and connection date."
+        : "Estimated — LinkedIn does not export interaction frequency or message data.",
     },
   ];
 
