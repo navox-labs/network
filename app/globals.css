@@ -211,3 +211,39 @@ input[type="text"]:focus, input[type="search"]:focus {
 }
 .pulse { animation: pulse 2s infinite; }
 
+/* ── Mobile responsive ────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  body {
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .btn {
+    min-height: 36px;
+    padding: 6px 12px;
+  }
+
+  .badge {
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+
+  .upload-zone {
+    padding: 32px 20px;
+  }
+
+  input[type="text"], input[type="search"] {
+    font-size: 16px; /* prevents iOS zoom on focus */
+    padding: 10px 12px;
+  }
+
+  .tooltip-card {
+    display: none; /* tooltips don't work well on touch */
+  }
+
+  /* Ensure scrollable containers work on mobile */
+  ::-webkit-scrollbar {
+    width: 2px;
+  }
+}
+

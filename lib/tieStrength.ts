@@ -317,6 +317,7 @@ export interface Connection {
   lastMessageDate?: string;
   messageBidirectional?: boolean;
   endorsementReceived?: boolean;
+  endorsementGiven?: boolean;
   recommendationReceived?: boolean;
   initiatedBy?: "user" | "them";
 }
@@ -342,6 +343,7 @@ export interface GraphNode {
   lastMessageDate?: string;
   messageBidirectional?: boolean;
   endorsementReceived?: boolean;
+  endorsementGiven?: boolean;
   recommendationReceived?: boolean;
   initiatedBy?: "user" | "them";
   // runtime graph fields
@@ -738,6 +740,7 @@ export function buildGraphData(connections: Connection[]): GraphData {
       lastMessageDate: c.lastMessageDate,
       messageBidirectional: c.messageBidirectional,
       endorsementReceived: c.endorsementReceived,
+      endorsementGiven: c.endorsementGiven,
       recommendationReceived: c.recommendationReceived,
       initiatedBy: c.initiatedBy,
     })),

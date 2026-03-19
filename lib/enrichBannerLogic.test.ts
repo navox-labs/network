@@ -26,7 +26,8 @@ describe("getMissingEnrichmentFiles", () => {
     const missing = getMissingEnrichmentFiles(null);
     expect(missing).toEqual([
       "messages.csv",
-      "endorsements_received_info.csv",
+      "endorsement_received_info.csv",
+      "endorsement_given_info.csv",
       "recommendations_received.csv",
       "invitations.csv",
     ]);
@@ -35,7 +36,7 @@ describe("getMissingEnrichmentFiles", () => {
   it("returns all enrichment files when only connections loaded", () => {
     const summary = makeSummary(["connections.csv"]);
     const missing = getMissingEnrichmentFiles(summary);
-    expect(missing).toHaveLength(4);
+    expect(missing).toHaveLength(5);
     expect(missing).toContain("messages.csv");
     expect(missing).toContain("invitations.csv");
   });
@@ -43,10 +44,11 @@ describe("getMissingEnrichmentFiles", () => {
   it("excludes loaded files from missing list", () => {
     const summary = makeSummary(["connections.csv", "messages.csv", "invitations.csv"]);
     const missing = getMissingEnrichmentFiles(summary);
-    expect(missing).toHaveLength(2);
+    expect(missing).toHaveLength(3);
     expect(missing).not.toContain("messages.csv");
     expect(missing).not.toContain("invitations.csv");
-    expect(missing).toContain("endorsements_received_info.csv");
+    expect(missing).toContain("endorsement_received_info.csv");
+    expect(missing).toContain("endorsement_given_info.csv");
     expect(missing).toContain("recommendations_received.csv");
   });
 
@@ -54,7 +56,8 @@ describe("getMissingEnrichmentFiles", () => {
     const summary = makeSummary([
       "connections.csv",
       "messages.csv",
-      "endorsements_received_info.csv",
+      "endorsement_received_info.csv",
+      "endorsement_given_info.csv",
       "recommendations_received.csv",
       "invitations.csv",
     ]);
@@ -91,7 +94,8 @@ describe("shouldShowBanner", () => {
     const summary = makeSummary([
       "connections.csv",
       "messages.csv",
-      "endorsements_received_info.csv",
+      "endorsement_received_info.csv",
+      "endorsement_given_info.csv",
       "recommendations_received.csv",
       "invitations.csv",
     ]);

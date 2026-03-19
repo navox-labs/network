@@ -10,23 +10,93 @@ interface Props {
   parsingStage?: string | null;
 }
 
+/**
+ * Recursively read all files from FileSystemEntry items (directories and files).
+ * Used when a folder is dropped onto the upload zone via drag and drop.
+ */
+async function readEntriesRecursively(entries: FileSystemEntry[]): Promise<File[]> {
+  const files: File[] = [];
+
+  const readEntry = (entry: FileSystemEntry): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      if (entry.isFile) {
+        (entry as FileSystemFileEntry).file(
+          (file) => { files.push(file); resolve(); },
+          (err) => reject(err)
+        );
+      } else if (entry.isDirectory) {
+        const reader = (entry as FileSystemDirectoryEntry).createReader();
+        const readBatch = () => {
+          reader.readEntries(
+            async (batch) => {
+              if (batch.length === 0) {
+                resolve();
+                return;
+              }
+              for (const child of batch) {
+                await readEntry(child);
+              }
+              // readEntries may return partial results; keep reading until empty
+              readBatch();
+            },
+            (err) => reject(err)
+          );
+        };
+        readBatch();
+      } else {
+        resolve();
+      }
+    });
+  };
+
+  for (const entry of entries) {
+    await readEntry(entry);
+  }
+
+  return files;
+}
+
 export default function UploadScreen({ onFiles, isLoading, error, parsingStage }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
 
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      setIsDragging(false);
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+
+    const items = e.dataTransfer.items;
+    if (!items || items.length === 0) return;
+
+    // Check if any item is a directory using webkitGetAsEntry
+    const entries: FileSystemEntry[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const entry = items[i].webkitGetAsEntry?.();
+      if (entry) entries.push(entry);
+    }
+
+    const hasDirectory = entries.some(e => e.isDirectory);
+
+    if (hasDirectory && entries.length > 0) {
+      // Recursively read directory contents
+      const files = await readEntriesRecursively(entries);
+      if (files.length > 0) onFiles(files);
+    } else if (entries.length > 0) {
+      // Has entries but no directories — read files from entries
+      const files = await readEntriesRecursively(entries);
+      if (files.length > 0) onFiles(files);
+    } else {
+      // Fallback: webkitGetAsEntry not available
       const files = Array.from(e.dataTransfer.files);
       if (files.length > 0) onFiles(files);
-    },
-    [onFiles]
-  );
+    }
+  }, [onFiles]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) onFiles(Array.from(files));
+    // Reset input so same file can be re-selected
+    e.target.value = "";
   };
 
   return (
@@ -36,7 +106,7 @@ export default function UploadScreen({ onFiles, isLoading, error, parsingStage }
       flexDirection: "column",
       alignItems: "center",
       justifyContent: "center",
-      padding: "40px 24px",
+      padding: "24px 16px",
       background: "radial-gradient(ellipse at 50% 0%, rgba(108,75,244,0.06) 0%, var(--bg) 60%)",
     }}>
       {/* Header */}
@@ -92,16 +162,25 @@ export default function UploadScreen({ onFiles, isLoading, error, parsingStage }
           textAlign: "center",
           marginBottom: 24,
         }}
-        onClick={() => inputRef.current?.click()}
         onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
         onDragLeave={() => setIsDragging(false)}
         onDrop={handleDrop}
       >
+        {/* File input for individual files */}
         <input
           ref={inputRef}
           type="file"
           accept=".csv,.zip"
           multiple
+          style={{ display: "none" }}
+          onChange={handleChange}
+        />
+        {/* Folder input for directory selection */}
+        <input
+          ref={folderInputRef}
+          type="file"
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          {...{ webkitdirectory: "" } as any}
           style={{ display: "none" }}
           onChange={handleChange}
         />
@@ -118,7 +197,7 @@ export default function UploadScreen({ onFiles, isLoading, error, parsingStage }
               <Network size={20} color="var(--accent)" />
             </div>
             <p style={{ color: "var(--text-secondary)", fontFamily: "var(--font-mono)", fontSize: 13 }}>
-              {parsingStage || "Parsing connections…"}
+              {parsingStage || "Parsing connections..."}
             </p>
           </div>
         ) : (
@@ -135,9 +214,24 @@ export default function UploadScreen({ onFiles, isLoading, error, parsingStage }
             <p style={{ color: "var(--text-primary)", fontSize: 15, fontWeight: 500, marginBottom: 6 }}>
               Drop your LinkedIn zip, folder, or files here
             </p>
-            <p style={{ color: "var(--text-muted)", fontSize: 13 }}>
-              or click to browse
-            </p>
+            <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 10 }}>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}
+                className="btn btn-ghost"
+                style={{ fontSize: 12, padding: "5px 14px" }}
+              >
+                Browse Files
+              </button>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); folderInputRef.current?.click(); }}
+                className="btn btn-ghost"
+                style={{ fontSize: 12, padding: "5px 14px" }}
+              >
+                Browse Folder
+              </button>
+            </div>
           </div>
         )}
       </div>

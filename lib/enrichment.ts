@@ -47,6 +47,7 @@ export interface ConnectionEnrichment {
   sentCount: number;
   receivedCount: number;
   endorsementReceived: boolean;
+  endorsementGiven: boolean;
   recommendationReceived: boolean;
   initiatedBy: "user" | "them" | null;
 }
@@ -141,6 +142,9 @@ export function parseMessages(rows: RawMessageRow[], userProfileUrl?: string): M
 }
 
 export interface RawEndorsementRow {
+  "Endorser Public Url"?: string;
+  "Endorser Public URL"?: string;
+  // Legacy fallbacks for older export formats
   "Endorser Profile Url"?: string;
   "Endorser Profile URL"?: string;
   "Skill Name"?: string;
@@ -150,14 +154,52 @@ export interface RawEndorsementRow {
 export function parseEndorsements(rows: RawEndorsementRow[]): EndorsementRecord[] {
   return rows
     .filter((row) => {
-      const url = row["Endorser Profile Url"] || row["Endorser Profile URL"] || "";
+      const url = row["Endorser Public Url"] || row["Endorser Public URL"]
+        || row["Endorser Profile Url"] || row["Endorser Profile URL"] || "";
       return url.trim().length > 0;
     })
     .map((row) => ({
       endorserProfileUrl: normalizeLinkedInUrl(
-        (row["Endorser Profile Url"] || row["Endorser Profile URL"] || "").trim()
+        (row["Endorser Public Url"] || row["Endorser Public URL"]
+          || row["Endorser Profile Url"] || row["Endorser Profile URL"] || "").trim()
       ),
       skillName: (row["Skill Name"] || "").trim(),
+    }));
+}
+
+// ── Endorsements Given ───────────────────────────────────────────────────
+
+export interface EndorsementGivenRecord {
+  endorseeProfileUrl: string;
+  skillName: string;
+  endorsementDate: string;
+  endorsementStatus: string;
+}
+
+export interface RawEndorsementGivenRow {
+  "Endorsement Date"?: string;
+  "Skill Name"?: string;
+  "Endorsee First Name"?: string;
+  "Endorsee Last Name"?: string;
+  "Endorsee Public Url"?: string;
+  "Endorsee Public URL"?: string;
+  "Endorsement Status"?: string;
+  [key: string]: string | undefined;
+}
+
+export function parseEndorsementsGiven(rows: RawEndorsementGivenRow[]): EndorsementGivenRecord[] {
+  return rows
+    .filter((row) => {
+      const url = row["Endorsee Public Url"] || row["Endorsee Public URL"] || "";
+      return url.trim().length > 0;
+    })
+    .map((row) => ({
+      endorseeProfileUrl: normalizeLinkedInUrl(
+        (row["Endorsee Public Url"] || row["Endorsee Public URL"] || "").trim()
+      ),
+      skillName: (row["Skill Name"] || "").trim(),
+      endorsementDate: (row["Endorsement Date"] || "").trim(),
+      endorsementStatus: (row["Endorsement Status"] || "").trim(),
     }));
 }
 
@@ -366,7 +408,8 @@ export function computeConnectionEnrichments(
   endorsements: EndorsementRecord[],
   recommendations: RecommendationRecord[],
   invitations: InvitationRecord[],
-  connections: Connection[]
+  connections: Connection[],
+  endorsementsGiven: EndorsementGivenRecord[] = []
 ): Map<string, ConnectionEnrichment> {
   const enrichmentMap = new Map<string, ConnectionEnrichment>();
 
@@ -380,6 +423,7 @@ export function computeConnectionEnrichments(
       sentCount: agg.sentCount,
       receivedCount: agg.receivedCount,
       endorsementReceived: false,
+      endorsementGiven: false,
       recommendationReceived: false,
       initiatedBy: null,
     });
@@ -387,6 +431,9 @@ export function computeConnectionEnrichments(
 
   // Endorsement matching
   const endorserUrls = new Set(endorsements.map((e) => e.endorserProfileUrl));
+
+  // Endorsement given matching — user endorsed these people
+  const endorseeUrls = new Set(endorsementsGiven.map((e) => e.endorseeProfileUrl));
 
   // Recommendation matching
   const recommenderUrls = new Set(recommendations.map((r) => r.recommenderProfileUrl));
@@ -406,10 +453,11 @@ export function computeConnectionEnrichments(
     if (!enrichment) {
       // Check if this connection has any non-message enrichment
       const hasEndorsement = endorserUrls.has(normalizedUrl);
+      const hasEndorsementGiven = endorseeUrls.has(normalizedUrl);
       const hasRecommendation = recommenderUrls.has(normalizedUrl);
       const hasInvitation = invitationMap.has(normalizedUrl);
 
-      if (!hasEndorsement && !hasRecommendation && !hasInvitation) continue;
+      if (!hasEndorsement && !hasEndorsementGiven && !hasRecommendation && !hasInvitation) continue;
 
       enrichment = {
         messageCount: 0,
@@ -418,6 +466,7 @@ export function computeConnectionEnrichments(
         sentCount: 0,
         receivedCount: 0,
         endorsementReceived: false,
+        endorsementGiven: false,
         recommendationReceived: false,
         initiatedBy: null,
       };
@@ -426,6 +475,9 @@ export function computeConnectionEnrichments(
 
     if (endorserUrls.has(normalizedUrl)) {
       enrichment.endorsementReceived = true;
+    }
+    if (endorseeUrls.has(normalizedUrl)) {
+      enrichment.endorsementGiven = true;
     }
     if (recommenderUrls.has(normalizedUrl)) {
       enrichment.recommendationReceived = true;

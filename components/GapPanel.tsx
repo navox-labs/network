@@ -3,6 +3,7 @@
 import { TrendingUp, Users, Zap, Info } from "lucide-react";
 import type { GapAnalysis, Connection, IndustryCluster } from "@/lib/tieStrength";
 import type { EnrichmentSummary } from "@/lib/enrichment";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 const CLUSTER_COLORS: Record<string, string> = {
   "Tech":             "#6366f1",
@@ -28,6 +29,7 @@ interface Props {
 }
 
 export default function GapPanel({ gapAnalysis, connections, onSwitchToSearch, enrichmentSummary, totalConnections: totalConnectionsProp }: Props) {
+  const isMobile = useIsMobile();
   const {
     totalConnections, avgTieStrength, bridgingCapitalScore,
     bondingCapitalScore, clusterDistribution = [], rolePercentages,
@@ -41,10 +43,10 @@ export default function GapPanel({ gapAnalysis, connections, onSwitchToSearch, e
   return (
     <div style={{
       height: "100%", overflow: "auto",
-      padding: "24px",
+      padding: isMobile ? "16px 12px" : "24px",
       display: "flex",
       flexDirection: "column",
-      gap: 20,
+      gap: isMobile ? 14 : 20,
     }}>
       {/* Header */}
       <div>
@@ -96,10 +98,10 @@ export default function GapPanel({ gapAnalysis, connections, onSwitchToSearch, e
       )}
 
       {/* Health score + key stats */}
-      <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: isMobile ? 10 : 14, flexWrap: "wrap", flexDirection: isMobile ? "column" : "row" }}>
         <HealthCard score={networkHealthScore} interpretation={interpretation} />
 
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", flex: 1 }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, flex: 1 }}>
           <StatCard
             icon={<Users size={16} />}
             label="Total Connections"
@@ -312,7 +314,8 @@ function ClusterRow({ cluster, color, count, percentage }: {
 const DATA_FILES = [
   { key: "connections.csv", label: "Connections" },
   { key: "messages.csv", label: "Messages" },
-  { key: "endorsements_received_info.csv", label: "Endorsements" },
+  { key: "endorsement_received_info.csv", label: "Endorsements Received" },
+  { key: "endorsement_given_info.csv", label: "Endorsements Given" },
   { key: "recommendations_received.csv", label: "Recommendations" },
   { key: "invitations.csv", label: "Invitations" },
 ] as const;
@@ -335,9 +338,12 @@ function DataLoadedSection({
       case "messages.csv":
         if (!loadedSet.has(key)) return "not loaded (upload to improve accuracy)";
         return `${enrichmentSummary.messageStats.totalMatched + enrichmentSummary.messageStats.totalUnmatched} messages, ${enrichmentSummary.messageStats.totalMatched} matched to connections`;
-      case "endorsements_received_info.csv":
+      case "endorsement_received_info.csv":
         if (!loadedSet.has(key)) return "not loaded (upload to improve accuracy)";
         return `${enrichmentSummary.endorsementCount} endorsements matched`;
+      case "endorsement_given_info.csv":
+        if (!loadedSet.has(key)) return "not loaded (upload to improve accuracy)";
+        return "endorsements given loaded";
       case "recommendations_received.csv":
         if (!loadedSet.has(key)) return "not loaded";
         return `${enrichmentSummary.recommendationCount} recommendations matched`;

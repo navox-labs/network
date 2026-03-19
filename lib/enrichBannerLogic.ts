@@ -7,7 +7,8 @@ import type { EnrichmentSummary } from "./enrichment";
 
 export const ENRICHMENT_FILES = [
   { key: "messages.csv", label: "Messages" },
-  { key: "endorsements_received_info.csv", label: "Endorsements" },
+  { key: "endorsement_received_info.csv", label: "Endorsements Received" },
+  { key: "endorsement_given_info.csv", label: "Endorsements Given" },
   { key: "recommendations_received.csv", label: "Recommendations" },
   { key: "invitations.csv", label: "Invitations" },
 ] as const;

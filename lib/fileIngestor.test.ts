@@ -18,7 +18,10 @@ describe("matchRecognizedFile", () => {
     expect(matchRecognizedFile("CONNECTIONS.CSV")).toBe("connections.csv");
     expect(matchRecognizedFile("messages.csv")).toBe("messages.csv");
     expect(matchRecognizedFile("Positions.csv")).toBe("positions.csv");
-    expect(matchRecognizedFile("Endorsements_Received_Info.csv")).toBe("endorsements_received_info.csv");
+    expect(matchRecognizedFile("Endorsement_Received_Info.csv")).toBe("endorsement_received_info.csv");
+    expect(matchRecognizedFile("Endorsements_Received_Info.csv")).toBe("endorsement_received_info.csv");
+    expect(matchRecognizedFile("Endorsement_Given_Info.csv")).toBe("endorsement_given_info.csv");
+    expect(matchRecognizedFile("Endorsements_Given_Info.csv")).toBe("endorsement_given_info.csv");
     expect(matchRecognizedFile("Recommendations_Received.csv")).toBe("recommendations_received.csv");
     expect(matchRecognizedFile("Invitations.csv")).toBe("invitations.csv");
   });
@@ -266,7 +269,7 @@ describe("summarizeFiles", () => {
     expect(summary.loaded).toContain("connections.csv");
     expect(summary.loaded).toContain("messages.csv");
     expect(summary.missing).toContain("positions.csv");
-    expect(summary.missing).toContain("endorsements_received_info.csv");
+    expect(summary.missing).toContain("endorsement_received_info.csv");
     expect(summary.enrichmentFileCount).toBe(1); // messages only (positions.csv excluded)
   });
 

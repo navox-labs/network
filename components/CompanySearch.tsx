@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { Search, ExternalLink, ArrowRight, Building2 } from "lucide-react";
 import { searchByCompany, type Connection } from "@/lib/tieStrength";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 interface Props {
   connections: Connection[];
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export default function CompanySearch({ connections, onHighlight, onSelectNode, onSwitchToGraph, onSearchChange }: Props) {
+  const isMobile = useIsMobile();
   const [query, setQuery] = useState("");
 
   const results = useMemo(() => {
@@ -51,7 +53,7 @@ export default function CompanySearch({ connections, onHighlight, onSelectNode, 
   }, [connections]);
 
   return (
-    <div style={{ height: "100%", overflow: "auto", padding: "24px", display: "flex", flexDirection: "column", gap: 20 }}>
+    <div style={{ height: "100%", overflow: "auto", padding: isMobile ? "16px 12px" : "24px", display: "flex", flexDirection: "column", gap: isMobile ? 14 : 20 }}>
       {/* Header */}
       <div>
         <h2 style={{ fontSize: 20, fontWeight: 600, color: "var(--text-primary)", marginBottom: 4 }}>

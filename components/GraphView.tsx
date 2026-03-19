@@ -5,6 +5,7 @@ import type { Connection, GraphData, GraphNode, RoleCategory } from "@/lib/tieSt
 import { getNodeCoachData } from "@/lib/coachInsights";
 import { getConfidenceBadgeStyle, buildDataSourceString } from "@/lib/confidenceDisplay";
 import { NodeCoachCard } from "@/components/CoachCard";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 const ROLE_COLORS: Record<RoleCategory, string> = {
   "Self":           "#6c4bf4",
@@ -54,12 +55,14 @@ export default function GraphView({ graphData, connections, highlightedIds, sele
   const containerRef = useRef<HTMLDivElement>(null);
   const fgRef = useRef<any>(null);
   const hasZoomed = useRef(false);
+  const isMobile = useIsMobile();
   const [ForceGraph2D, setForceGraph2D] = useState<any>(null);
   const [dimensions, setDimensions] = useState({ w: 800, h: 600 });
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [filterRole, setFilterRole] = useState<RoleCategory | null>(null);
   const [filterTie, setFilterTie] = useState<string | null>(null);
+  const [legendOpen, setLegendOpen] = useState(false);
 
   // Lazy load react-force-graph-2d on client (bypasses next/dynamic ref issues)
   useEffect(() => {
@@ -204,71 +207,149 @@ export default function GraphView({ graphData, connections, highlightedIds, sele
     <div ref={containerRef} style={{ width: "100%", height: "100%", position: "relative", background: "var(--bg)" }}>
 
       {/* Legend */}
-      <div style={{
-        position: "absolute", top: 16, right: 16, zIndex: 10,
-        background: "var(--bg-panel)",
-        border: "1px solid var(--border)",
-        borderRadius: 10,
-        padding: "14px 16px",
-        minWidth: 170,
-      }}>
-        <div style={{ fontSize: 10, color: "var(--text-muted)", letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: "var(--font-mono)", marginBottom: 10 }}>
-          Role Category
-        </div>
-        {roles.map(([role, color]) => (
-          <div
-            key={role}
-            onClick={() => setFilterRole(filterRole === role ? null : role)}
+      {isMobile ? (
+        <>
+          <button
+            onClick={() => setLegendOpen(!legendOpen)}
             style={{
-              display: "flex", alignItems: "center", gap: 8, marginBottom: 5,
-              cursor: "pointer", opacity: filterRole && filterRole !== role ? 0.35 : 1,
-              transition: "opacity 0.15s",
+              position: "absolute", top: 10, right: 10, zIndex: 10,
+              background: "var(--bg-panel)",
+              border: "1px solid var(--border)",
+              borderRadius: 8,
+              padding: "6px 10px",
+              fontSize: 10,
+              color: "var(--text-muted)",
+              fontFamily: "var(--font-mono)",
+              cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 4,
             }}
           >
-            <div style={{ width: 8, height: 8, borderRadius: "50%", background: color, flexShrink: 0 }} />
-            <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{role}</span>
+            Legend {legendOpen ? "-" : "+"}
+          </button>
+          {legendOpen && (
+            <div className="fade-in" style={{
+              position: "absolute", top: 40, right: 10, zIndex: 10,
+              background: "var(--bg-panel)",
+              border: "1px solid var(--border)",
+              borderRadius: 10,
+              padding: "12px 14px",
+              minWidth: 150,
+              maxHeight: "60vh",
+              overflowY: "auto",
+            }}>
+              <div style={{ fontSize: 10, color: "var(--text-muted)", letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: "var(--font-mono)", marginBottom: 8 }}>
+                Role Category
+              </div>
+              {roles.map(([role, color]) => (
+                <div
+                  key={role}
+                  onClick={() => setFilterRole(filterRole === role ? null : role)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 6, marginBottom: 4,
+                    cursor: "pointer", opacity: filterRole && filterRole !== role ? 0.35 : 1,
+                    padding: "2px 0",
+                  }}
+                >
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: color, flexShrink: 0 }} />
+                  <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>{role}</span>
+                </div>
+              ))}
+              <div style={{ borderTop: "1px solid var(--border)", marginTop: 8, paddingTop: 8 }}>
+                <div style={{ fontSize: 10, color: "var(--text-muted)", letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: "var(--font-mono)", marginBottom: 6 }}>
+                  Tie Strength
+                </div>
+                {Object.entries(TIE_COLORS).map(([tier, color]) => (
+                  <div
+                    key={tier}
+                    onClick={() => setFilterTie(filterTie === tier ? null : tier)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 6, marginBottom: 3,
+                      cursor: "pointer", opacity: filterTie && filterTie !== tier ? 0.35 : 1,
+                      padding: "2px 0",
+                    }}
+                  >
+                    <div style={{ width: 20, height: 2, background: color, borderRadius: 1 }} />
+                    <span style={{ fontSize: 10, color: "var(--text-secondary)", fontFamily: "var(--font-mono)" }}>{tier}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <div style={{
+          position: "absolute", top: 16, right: 16, zIndex: 10,
+          background: "var(--bg-panel)",
+          border: "1px solid var(--border)",
+          borderRadius: 10,
+          padding: "14px 16px",
+          minWidth: 170,
+        }}>
+          <div style={{ fontSize: 10, color: "var(--text-muted)", letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: "var(--font-mono)", marginBottom: 10 }}>
+            Role Category
           </div>
-        ))}
-
-        <div style={{ borderTop: "1px solid var(--border)", marginTop: 10, paddingTop: 10 }}>
-          <div style={{ fontSize: 10, color: "var(--text-muted)", letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: "var(--font-mono)", marginBottom: 8 }}>
-            Tie Strength
-          </div>
-          {Object.entries(TIE_COLORS).map(([tier, color]) => (
+          {roles.map(([role, color]) => (
             <div
-              key={tier}
-              onClick={() => setFilterTie(filterTie === tier ? null : tier)}
+              key={role}
+              onClick={() => setFilterRole(filterRole === role ? null : role)}
               style={{
-                display: "flex", alignItems: "center", gap: 8, marginBottom: 4,
-                cursor: "pointer", opacity: filterTie && filterTie !== tier ? 0.35 : 1,
+                display: "flex", alignItems: "center", gap: 8, marginBottom: 5,
+                cursor: "pointer", opacity: filterRole && filterRole !== role ? 0.35 : 1,
                 transition: "opacity 0.15s",
               }}
             >
-              <div style={{ width: 24, height: 2, background: color, borderRadius: 1 }} />
-              <span style={{ fontSize: 11, color: "var(--text-secondary)", fontFamily: "var(--font-mono)" }}>
-                {tier}
-              </span>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: color, flexShrink: 0 }} />
+              <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{role}</span>
             </div>
           ))}
-        </div>
 
-        <div style={{ borderTop: "1px solid var(--border)", marginTop: 8, paddingTop: 8 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--text-muted)" }}>
-            <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--moderate)" }} />
-            <span>= Bridge node</span>
+          <div style={{ borderTop: "1px solid var(--border)", marginTop: 10, paddingTop: 10 }}>
+            <div style={{ fontSize: 10, color: "var(--text-muted)", letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: "var(--font-mono)", marginBottom: 8 }}>
+              Tie Strength
+            </div>
+            {Object.entries(TIE_COLORS).map(([tier, color]) => (
+              <div
+                key={tier}
+                onClick={() => setFilterTie(filterTie === tier ? null : tier)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8, marginBottom: 4,
+                  cursor: "pointer", opacity: filterTie && filterTie !== tier ? 0.35 : 1,
+                  transition: "opacity 0.15s",
+                }}
+              >
+                <div style={{ width: 24, height: 2, background: color, borderRadius: 1 }} />
+                <span style={{ fontSize: 11, color: "var(--text-secondary)", fontFamily: "var(--font-mono)" }}>
+                  {tier}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ borderTop: "1px solid var(--border)", marginTop: 8, paddingTop: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--text-muted)" }}>
+              <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--moderate)" }} />
+              <span>= Bridge node</span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Selected node card */}
       {selectedNode && (
         <div style={{
-          position: "absolute", bottom: 20, left: 20, zIndex: 10,
+          position: "absolute",
+          bottom: isMobile ? 0 : 20,
+          left: isMobile ? 0 : 20,
+          right: isMobile ? 0 : "auto",
+          zIndex: 10,
           background: "var(--bg-panel)",
           border: "1px solid var(--border-hi)",
-          borderRadius: 10,
-          padding: "16px 18px",
-          minWidth: 260, maxWidth: 320,
+          borderRadius: isMobile ? "10px 10px 0 0" : 10,
+          padding: isMobile ? "14px 16px" : "16px 18px",
+          minWidth: isMobile ? "auto" : 260,
+          maxWidth: isMobile ? "none" : 320,
+          maxHeight: isMobile ? "50vh" : "none",
+          overflowY: isMobile ? "auto" : "visible",
         }} className="fade-in">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
             <div>

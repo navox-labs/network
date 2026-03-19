@@ -5,6 +5,7 @@ import { Zap, Copy, CheckCircle, ExternalLink, ChevronDown, ChevronUp } from "lu
 import type { Connection, GapAnalysis } from "@/lib/tieStrength";
 import { getWeeklyPlan } from "@/lib/coachInsights";
 import { WeeklyPlanCard } from "@/components/CoachCard";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 interface Props {
   connections: Connection[];
@@ -21,6 +22,7 @@ const MESSAGE_TEMPLATES: Record<string, (conn: Connection, userName?: string) =>
 };
 
 export default function OutreachQueue({ connections, gapAnalysis }: Props) {
+  const isMobile = useIsMobile();
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
@@ -51,7 +53,7 @@ export default function OutreachQueue({ connections, gapAnalysis }: Props) {
     `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(name)}`;
 
   return (
-    <div style={{ height: "100%", overflow: "auto", padding: "24px", display: "flex", flexDirection: "column", gap: 20 }}>
+    <div style={{ height: "100%", overflow: "auto", padding: isMobile ? "16px 12px" : "24px", display: "flex", flexDirection: "column", gap: isMobile ? 14 : 20 }}>
       {/* Weekly Plan Coach Card */}
       <WeeklyPlanCard targets={getWeeklyPlan(gapAnalysis)} />
 
@@ -121,7 +123,7 @@ export default function OutreachQueue({ connections, gapAnalysis }: Props) {
               }}
             >
               {/* Main row */}
-              <div style={{ padding: "14px 16px", display: "flex", gap: 14, alignItems: "flex-start" }}>
+              <div style={{ padding: isMobile ? "12px" : "14px 16px", display: "flex", gap: isMobile ? 10 : 14, alignItems: "flex-start", flexWrap: isMobile ? "wrap" : "nowrap" }}>
                 {/* Rank */}
                 <div style={{
                   width: 28, height: 28, borderRadius: 7, flexShrink: 0,
@@ -134,7 +136,7 @@ export default function OutreachQueue({ connections, gapAnalysis }: Props) {
 
                 {/* Info */}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 2 }}>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 2, flexWrap: "wrap" }}>
                     <span style={{ fontWeight: 600, fontSize: 14, color: "var(--text-primary)" }}>
                       {conn.name}
                     </span>
@@ -153,7 +155,7 @@ export default function OutreachQueue({ connections, gapAnalysis }: Props) {
                     </span>
                     {conn.isBridge && (
                       <span className="badge" style={{ background: "rgba(22,163,107,0.1)", color: "var(--strong)" }}>
-                        bridge — {conn.industryCluster}
+                        bridge -- {conn.industryCluster}
                       </span>
                     )}
                     <span className="badge" style={{ background: "rgba(107,114,128,0.08)", color: "var(--text-muted)" }}>
@@ -163,7 +165,7 @@ export default function OutreachQueue({ connections, gapAnalysis }: Props) {
                 </div>
 
                 {/* Actions */}
-                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                <div style={{ display: "flex", gap: 6, flexShrink: 0, width: isMobile ? "100%" : "auto", justifyContent: isMobile ? "flex-end" : "flex-start", minHeight: isMobile ? 36 : "auto" }}>
                   <button
                     onClick={() => setExpandedId(isExpanded ? null : conn.id)}
                     className="btn btn-ghost"

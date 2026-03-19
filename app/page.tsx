@@ -25,6 +25,7 @@ import {
 import {
   parseMessages,
   parseEndorsements,
+  parseEndorsementsGiven,
   parseRecommendations,
   parseInvitations,
   computeConnectionEnrichments,
@@ -174,6 +175,7 @@ export default function Home() {
         c.lastMessageDate = enrichment.lastMessageDate || undefined;
         c.messageBidirectional = enrichment.messageBidirectional;
         c.endorsementReceived = enrichment.endorsementReceived;
+        c.endorsementGiven = enrichment.endorsementGiven;
         c.recommendationReceived = enrichment.recommendationReceived;
         c.initiatedBy = enrichment.initiatedBy || undefined;
       }
@@ -251,8 +253,11 @@ export default function Home() {
         const msgRows = fileMap.has("messages.csv")
           ? Papa.parse<Record<string, string>>(fileMap.get("messages.csv")!, { header: true, skipEmptyLines: true }).data
           : [];
-        const endorseRows = fileMap.has("endorsements_received_info.csv")
-          ? Papa.parse<Record<string, string>>(fileMap.get("endorsements_received_info.csv")!, { header: true, skipEmptyLines: true }).data
+        const endorseRows = fileMap.has("endorsement_received_info.csv")
+          ? Papa.parse<Record<string, string>>(fileMap.get("endorsement_received_info.csv")!, { header: true, skipEmptyLines: true }).data
+          : [];
+        const endorseGivenRows = fileMap.has("endorsement_given_info.csv")
+          ? Papa.parse<Record<string, string>>(fileMap.get("endorsement_given_info.csv")!, { header: true, skipEmptyLines: true }).data
           : [];
         const recRows = fileMap.has("recommendations_received.csv")
           ? Papa.parse<Record<string, string>>(fileMap.get("recommendations_received.csv")!, { header: true, skipEmptyLines: true }).data
@@ -268,11 +273,12 @@ export default function Home() {
 
         const messages = parseMessages(msgRows, userProfileUrl);
         const endorsements = parseEndorsements(endorseRows);
+        const endorsementsGiven = parseEndorsementsGiven(endorseGivenRows);
         const recommendations = parseRecommendations(recRows);
         const invitations = parseInvitations(invRows);
 
         const enrichmentMap = computeConnectionEnrichments(
-          messages, endorsements, recommendations, invitations, parsed
+          messages, endorsements, recommendations, invitations, parsed, endorsementsGiven
         );
 
         // Apply enrichment to connections
@@ -373,8 +379,11 @@ export default function Home() {
       const msgRows = fileMap.has("messages.csv")
         ? Papa.parse<Record<string, string>>(fileMap.get("messages.csv")!, { header: true, skipEmptyLines: true }).data
         : [];
-      const endorseRows = fileMap.has("endorsements_received_info.csv")
-        ? Papa.parse<Record<string, string>>(fileMap.get("endorsements_received_info.csv")!, { header: true, skipEmptyLines: true }).data
+      const endorseRows = fileMap.has("endorsement_received_info.csv")
+        ? Papa.parse<Record<string, string>>(fileMap.get("endorsement_received_info.csv")!, { header: true, skipEmptyLines: true }).data
+        : [];
+      const endorseGivenRows = fileMap.has("endorsement_given_info.csv")
+        ? Papa.parse<Record<string, string>>(fileMap.get("endorsement_given_info.csv")!, { header: true, skipEmptyLines: true }).data
         : [];
       const recRows = fileMap.has("recommendations_received.csv")
         ? Papa.parse<Record<string, string>>(fileMap.get("recommendations_received.csv")!, { header: true, skipEmptyLines: true }).data
@@ -390,11 +399,12 @@ export default function Home() {
 
       const messages = parseMessages(msgRows, userProfileUrl);
       const endorsements = parseEndorsements(endorseRows);
+      const endorsementsGiven = parseEndorsementsGiven(endorseGivenRows);
       const recommendations = parseRecommendations(recRows);
       const invitations = parseInvitations(invRows);
 
       const enrichmentMap = computeConnectionEnrichments(
-        messages, endorsements, recommendations, invitations, connections
+        messages, endorsements, recommendations, invitations, connections, endorsementsGiven
       );
 
       // Apply enrichment to existing connections (mutates in place)

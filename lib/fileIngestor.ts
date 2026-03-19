@@ -9,7 +9,8 @@
  * - Connections.csv       (required)
  * - messages.csv          (enrichment)
  * - Positions.csv         (enrichment)
- * - Endorsements_Received_Info.csv (enrichment)
+ * - Endorsement_Received_Info.csv / Endorsements_Received_Info.csv (enrichment)
+ * - Endorsement_Given_Info.csv / Endorsements_Given_Info.csv       (enrichment)
  * - Recommendations_Received.csv   (enrichment)
  * - Invitations.csv       (enrichment)
  */
@@ -20,10 +21,20 @@ const RECOGNIZED_FILES: string[] = [
   "connections.csv",
   "messages.csv",
   "positions.csv",
-  "endorsements_received_info.csv",
+  "endorsement_received_info.csv",
+  "endorsement_given_info.csv",
   "recommendations_received.csv",
   "invitations.csv",
 ];
+
+/**
+ * Map variant filenames to their canonical form.
+ * LinkedIn exports use both singular and plural naming for endorsement files.
+ */
+const FILENAME_ALIASES: Record<string, string> = {
+  "endorsements_received_info.csv": "endorsement_received_info.csv",
+  "endorsements_given_info.csv": "endorsement_given_info.csv",
+};
 
 /** Max decompressed size per file: 10 MB */
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -38,7 +49,9 @@ export function matchRecognizedFile(path: string): string | null {
   // Extract basename from path (zip entries may have folder prefixes)
   const basename = path.split("/").pop()?.split("\\").pop() || "";
   const lower = basename.toLowerCase();
-  return RECOGNIZED_FILES.includes(lower) ? lower : null;
+  // Normalize variant filenames to canonical form
+  const canonical = FILENAME_ALIASES[lower] ?? lower;
+  return RECOGNIZED_FILES.includes(canonical) ? canonical : null;
 }
 
 /**
@@ -218,7 +231,7 @@ export function summarizeFiles(fileMap: Map<string, string>): FilePresenceSummar
   }
 
   // positions.csv is recognized but has no parser yet — exclude from enrichment count
-  const PARSEABLE_ENRICHMENT = ["messages.csv", "endorsements_received_info.csv", "recommendations_received.csv", "invitations.csv"];
+  const PARSEABLE_ENRICHMENT = ["messages.csv", "endorsement_received_info.csv", "endorsement_given_info.csv", "recommendations_received.csv", "invitations.csv"];
   return {
     loaded,
     missing,

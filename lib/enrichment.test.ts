@@ -3,6 +3,7 @@ import {
   normalizeLinkedInUrl,
   parseMessages,
   parseEndorsements,
+  parseEndorsementsGiven,
   parseRecommendations,
   parseInvitations,
   matchMessagesToConnections,
@@ -13,6 +14,7 @@ import {
   detectUserProfileUrl,
   type RawMessageRow,
   type RawEndorsementRow,
+  type RawEndorsementGivenRow,
   type RawRecommendationRow,
   type RawInvitationRow,
   type MessageRecord,
@@ -184,6 +186,107 @@ describe("parseEndorsements", () => {
       { "Endorser Profile Url": "", "Skill Name": "Python" },
     ];
     expect(parseEndorsements(rows)).toHaveLength(0);
+  });
+});
+
+// ── parseEndorsements — Endorser Public Url field ──────────────────────
+
+describe("parseEndorsements — Endorser Public Url", () => {
+  it("parses rows with 'Endorser Public Url' (actual LinkedIn export field)", () => {
+    const rows: RawEndorsementRow[] = [
+      { "Endorser Public Url": "https://linkedin.com/in/alice", "Skill Name": "Python" },
+    ];
+    const endorsements = parseEndorsements(rows);
+    expect(endorsements).toHaveLength(1);
+    expect(endorsements[0].endorserProfileUrl).toBe("https://linkedin.com/in/alice");
+  });
+
+  it("prefers 'Endorser Public Url' over 'Endorser Profile Url'", () => {
+    const rows: RawEndorsementRow[] = [
+      {
+        "Endorser Public Url": "https://linkedin.com/in/from-public",
+        "Endorser Profile Url": "https://linkedin.com/in/from-profile",
+        "Skill Name": "Python",
+      },
+    ];
+    const endorsements = parseEndorsements(rows);
+    expect(endorsements[0].endorserProfileUrl).toBe("https://linkedin.com/in/from-public");
+  });
+});
+
+// ── parseEndorsementsGiven ─────────────────────────────────────────────
+
+describe("parseEndorsementsGiven", () => {
+  it("parses endorsement given rows", () => {
+    const rows: RawEndorsementGivenRow[] = [
+      {
+        "Endorsement Date": "2024-06-01",
+        "Skill Name": "Python",
+        "Endorsee First Name": "Alice",
+        "Endorsee Last Name": "Smith",
+        "Endorsee Public Url": "https://linkedin.com/in/alice",
+        "Endorsement Status": "ACCEPTED",
+      },
+    ];
+    const result = parseEndorsementsGiven(rows);
+    expect(result).toHaveLength(1);
+    expect(result[0].endorseeProfileUrl).toBe("https://linkedin.com/in/alice");
+    expect(result[0].skillName).toBe("Python");
+    expect(result[0].endorsementDate).toBe("2024-06-01");
+    expect(result[0].endorsementStatus).toBe("ACCEPTED");
+  });
+
+  it("filters out rows without endorsee URL", () => {
+    const rows: RawEndorsementGivenRow[] = [
+      { "Endorsee Public Url": "", "Skill Name": "Python" },
+    ];
+    expect(parseEndorsementsGiven(rows)).toHaveLength(0);
+  });
+
+  it("handles alternate URL casing", () => {
+    const rows: RawEndorsementGivenRow[] = [
+      { "Endorsee Public URL": "https://linkedin.com/in/bob", "Skill Name": "Go" },
+    ];
+    const result = parseEndorsementsGiven(rows);
+    expect(result).toHaveLength(1);
+    expect(result[0].endorseeProfileUrl).toBe("https://linkedin.com/in/bob");
+  });
+});
+
+// ── computeConnectionEnrichments with endorsements given ─────────────────
+
+describe("computeConnectionEnrichments — endorsementsGiven", () => {
+  const ALICE = "https://www.linkedin.com/in/alice";
+
+  it("sets endorsementGiven when user endorsed a connection", () => {
+    const connections = [
+      makeConnection({ id: "1", url: ALICE }),
+    ];
+
+    const endorsementsGiven = [
+      { endorseeProfileUrl: ALICE, skillName: "Python", endorsementDate: "2024-06-01", endorsementStatus: "ACCEPTED" },
+    ];
+
+    const result = computeConnectionEnrichments([], [], [], [], connections, endorsementsGiven);
+    const alice = result.get(ALICE);
+    expect(alice).toBeDefined();
+    expect(alice!.endorsementGiven).toBe(true);
+  });
+
+  it("endorsementGiven is false when user did not endorse", () => {
+    const connections = [
+      makeConnection({ id: "1", url: ALICE }),
+    ];
+
+    const endorsements = [
+      { endorserProfileUrl: ALICE, skillName: "Python" },
+    ];
+
+    const result = computeConnectionEnrichments([], endorsements, [], [], connections, []);
+    const alice = result.get(ALICE);
+    expect(alice).toBeDefined();
+    expect(alice!.endorsementReceived).toBe(true);
+    expect(alice!.endorsementGiven).toBe(false);
   });
 });
 
@@ -452,6 +555,7 @@ describe("buildEnrichmentSummary", () => {
           sentCount: 3,
           receivedCount: 2,
           endorsementReceived: true,
+          endorsementGiven: false,
           recommendationReceived: false,
           initiatedBy: "user" as const,
         },
@@ -465,6 +569,7 @@ describe("buildEnrichmentSummary", () => {
           sentCount: 0,
           receivedCount: 0,
           endorsementReceived: false,
+          endorsementGiven: false,
           recommendationReceived: true,
           initiatedBy: null,
         },
@@ -496,7 +601,8 @@ describe("buildEnrichmentSummary", () => {
     const enrichmentMap = new Map<string, {
       messageCount: number; lastMessageDate: string | null;
       messageBidirectional: boolean; sentCount: number; receivedCount: number;
-      endorsementReceived: boolean; recommendationReceived: boolean;
+      endorsementReceived: boolean; endorsementGiven: boolean;
+      recommendationReceived: boolean;
       initiatedBy: "user" | "them" | null;
     }>();
     const summary = buildEnrichmentSummary(["connections.csv"], enrichmentMap, [], 0);
@@ -523,7 +629,8 @@ describe("buildEnrichmentSummary", () => {
     const enrichmentMap = new Map<string, {
       messageCount: number; lastMessageDate: string | null;
       messageBidirectional: boolean; sentCount: number; receivedCount: number;
-      endorsementReceived: boolean; recommendationReceived: boolean;
+      endorsementReceived: boolean; endorsementGiven: boolean;
+      recommendationReceived: boolean;
       initiatedBy: "user" | "them" | null;
     }>();
 
@@ -543,7 +650,8 @@ describe("buildEnrichmentSummary", () => {
     const enrichmentMap = new Map<string, {
       messageCount: number; lastMessageDate: string | null;
       messageBidirectional: boolean; sentCount: number; receivedCount: number;
-      endorsementReceived: boolean; recommendationReceived: boolean;
+      endorsementReceived: boolean; endorsementGiven: boolean;
+      recommendationReceived: boolean;
       initiatedBy: "user" | "them" | null;
     }>();
 
