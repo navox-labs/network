@@ -1,6 +1,7 @@
 "use client";
 
-import { TrendingUp, Users, Zap, Info } from "lucide-react";
+import { useState } from "react";
+import { TrendingUp, Users, Zap, Info, ChevronDown } from "lucide-react";
 import type { GapAnalysis, Connection, IndustryCluster } from "@/lib/tieStrength";
 import type { EnrichmentSummary } from "@/lib/enrichment";
 import { useIsMobile } from "@/hooks/useIsMobile";
@@ -40,6 +41,11 @@ export default function GapPanel({ gapAnalysis, connections, onSwitchToSearch, e
   const moderateCount = connections.filter(c => c.tieCategory === "moderate").length;
   const strongCount = connections.filter(c => c.tieCategory === "strong").length;
 
+  const highConf = connections.filter(c => c.confidenceLevel === "high").length;
+  const medConf = connections.filter(c => c.confidenceLevel === "medium").length;
+  const lowConf = connections.filter(c => c.confidenceLevel === "low").length;
+  const confTotal = highConf + medConf + lowConf;
+
   return (
     <div style={{
       height: "100%", overflow: "auto",
@@ -58,14 +64,6 @@ export default function GapPanel({ gapAnalysis, connections, onSwitchToSearch, e
           capital distribution — the key predictor of job mobility per the Invisible Network paper.
         </p>
       </div>
-
-      {/* Data Loaded section */}
-      {enrichmentSummary && (
-        <DataLoadedSection
-          enrichmentSummary={enrichmentSummary}
-          totalConnections={totalConnectionsProp ?? totalConnections}
-        />
-      )}
 
       {/* Latent ties insight */}
       {enrichmentSummary &&
@@ -151,6 +149,75 @@ export default function GapPanel({ gapAnalysis, connections, onSwitchToSearch, e
           total={totalConnections} color="var(--text-muted)" note="May need re-activation" />
       </div>
 
+      {/* Confidence Distribution */}
+      <div style={{
+        background: "var(--bg-panel)",
+        border: "1px solid var(--border)",
+        borderRadius: 10,
+        padding: "18px 20px",
+      }}>
+        <div style={{ fontSize: 12, color: "var(--text-muted)", letterSpacing: "0.05em", textTransform: "uppercase", fontFamily: "var(--font-mono)", marginBottom: 14 }}>
+          Confidence Distribution
+        </div>
+
+        {/* Stacked horizontal bar */}
+        <div style={{ display: "flex", height: 28, borderRadius: 6, overflow: "hidden", marginBottom: 10 }}>
+          {confTotal > 0 && (
+            <>
+              {highConf > 0 && (
+                <div style={{
+                  width: `${(highConf / confTotal) * 100}%`,
+                  background: "rgba(34,197,94,0.15)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 500,
+                  color: "#22c55e",
+                  minWidth: highConf > 0 ? 32 : 0,
+                }}>
+                  {Math.round((highConf / confTotal) * 100)}%
+                </div>
+              )}
+              {medConf > 0 && (
+                <div style={{
+                  width: `${(medConf / confTotal) * 100}%`,
+                  background: "rgba(217,150,10,0.15)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 500,
+                  color: "var(--warning)",
+                  minWidth: medConf > 0 ? 32 : 0,
+                }}>
+                  {Math.round((medConf / confTotal) * 100)}%
+                </div>
+              )}
+              {lowConf > 0 && (
+                <div style={{
+                  width: `${(lowConf / confTotal) * 100}%`,
+                  background: "rgba(255,255,255,0.06)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 500,
+                  color: "var(--text-muted)",
+                  minWidth: lowConf > 0 ? 32 : 0,
+                }}>
+                  {Math.round((lowConf / confTotal) * 100)}%
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Labels */}
+        <div style={{ fontSize: 12, color: "var(--text-secondary)", fontFamily: "var(--font-mono)", lineHeight: 1.6 }}>
+          <span style={{ color: "#22c55e" }}>{highConf} High</span>
+          {" \u00B7 "}
+          <span style={{ color: "var(--warning)" }}>{medConf} Medium</span>
+          {" \u00B7 "}
+          <span style={{ color: "var(--text-muted)" }}>{lowConf} Low</span>
+        </div>
+
+        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 10, fontStyle: "italic", lineHeight: 1.4 }}>
+          Based on message interaction data and connection date
+        </div>
+      </div>
+
       {/* Industry cluster distribution */}
       <div style={{
         background: "var(--bg-panel)",
@@ -196,6 +263,14 @@ export default function GapPanel({ gapAnalysis, connections, onSwitchToSearch, e
             ))}
           </div>
         </div>
+      )}
+
+      {/* Data Loaded section — collapsible, at bottom */}
+      {enrichmentSummary && (
+        <CollapsibleDataLoaded
+          enrichmentSummary={enrichmentSummary}
+          totalConnections={totalConnectionsProp ?? totalConnections}
+        />
       )}
     </div>
   );
@@ -320,6 +395,69 @@ const DATA_FILES = [
   { key: "invitations.csv", label: "Invitations" },
 ] as const;
 
+function CollapsibleDataLoaded({
+  enrichmentSummary,
+  totalConnections,
+}: {
+  enrichmentSummary: EnrichmentSummary;
+  totalConnections: number;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const loadedSet = new Set(
+    enrichmentSummary.filesLoaded.map((f) => f.toLowerCase())
+  );
+  const loadedCount = DATA_FILES.filter((f) => loadedSet.has(f.key)).length;
+
+  return (
+    <div style={{
+      background: "var(--bg-panel)",
+      border: "1px solid var(--border)",
+      borderRadius: 10,
+      overflow: "hidden",
+    }}>
+      {/* Toggle header */}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "14px 18px",
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          fontFamily: "var(--font-mono)",
+          fontSize: 12,
+          color: "var(--text-muted)",
+          letterSpacing: "0.05em",
+          textTransform: "uppercase",
+        }}
+      >
+        <span>Data sources ({loadedCount} of {DATA_FILES.length} loaded)</span>
+        <ChevronDown
+          size={14}
+          style={{
+            transition: "transform 0.2s ease",
+            transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
+            flexShrink: 0,
+          }}
+        />
+      </button>
+
+      {/* Collapsible content */}
+      {isOpen && (
+        <div style={{ padding: "0 18px 16px 18px" }}>
+          <DataLoadedSection
+            enrichmentSummary={enrichmentSummary}
+            totalConnections={totalConnections}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DataLoadedSection({
   enrichmentSummary,
   totalConnections,
@@ -356,47 +494,34 @@ function DataLoadedSection({
   };
 
   return (
-    <div style={{
-      background: "var(--bg-panel)",
-      border: "1px solid var(--border)",
-      borderRadius: 10,
-      padding: "16px 18px",
-    }}>
-      <div style={{
-        fontSize: 12, color: "var(--text-muted)", letterSpacing: "0.05em",
-        textTransform: "uppercase", fontFamily: "var(--font-mono)", marginBottom: 12,
-      }}>
-        Data Loaded
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {DATA_FILES.map((f) => {
-          const isLoaded = loadedSet.has(f.key);
-          return (
-            <div
-              key={f.key}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                fontSize: 13,
-                color: isLoaded ? "var(--text-secondary)" : "var(--text-muted)",
-              }}
-            >
-              <span style={{ color: isLoaded ? "#10b981" : "#f59e0b", flexShrink: 0 }}>
-                {isLoaded ? "\u2705" : "\u26A0\uFE0F"}
-              </span>
-              <span style={{ fontWeight: 500 }}>{f.label}</span>
-              <span style={{
-                fontSize: 11,
-                color: "var(--text-muted)",
-                fontFamily: "var(--font-mono)",
-              }}>
-                — {getDetail(f.key)}
-              </span>
-            </div>
-          );
-        })}
-      </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {DATA_FILES.map((f) => {
+        const isLoaded = loadedSet.has(f.key);
+        return (
+          <div
+            key={f.key}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              fontSize: 13,
+              color: isLoaded ? "var(--text-secondary)" : "var(--text-muted)",
+            }}
+          >
+            <span style={{ color: isLoaded ? "#10b981" : "#f59e0b", flexShrink: 0 }}>
+              {isLoaded ? "\u2705" : "\u26A0\uFE0F"}
+            </span>
+            <span style={{ fontWeight: 500 }}>{f.label}</span>
+            <span style={{
+              fontSize: 11,
+              color: "var(--text-muted)",
+              fontFamily: "var(--font-mono)",
+            }}>
+              — {getDetail(f.key)}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }

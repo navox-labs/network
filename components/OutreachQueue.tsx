@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Zap, Copy, CheckCircle, ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Zap, Copy, CheckCircle, ExternalLink, ChevronDown, ChevronUp, MoreHorizontal } from "lucide-react";
 import type { Connection, GapAnalysis } from "@/lib/tieStrength";
 import { getWeeklyPlan } from "@/lib/coachInsights";
 import { WeeklyPlanCard } from "@/components/CoachCard";
@@ -27,6 +27,7 @@ export default function OutreachQueue({ connections, gapAnalysis }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
   const [weekFilter, setWeekFilter] = useState<1 | 2>(1);
+  const [overflowOpenId, setOverflowOpenId] = useState<string | null>(null);
 
   const queue = gapAnalysis.topActivationTargets.slice(0, weekFilter === 1 ? 8 : 15);
 
@@ -164,35 +165,17 @@ export default function OutreachQueue({ connections, gapAnalysis }: Props) {
                   </div>
                 </div>
 
-                {/* Actions */}
-                <div style={{ display: "flex", gap: 6, flexShrink: 0, width: isMobile ? "100%" : "auto", justifyContent: isMobile ? "flex-end" : "flex-start", minHeight: isMobile ? 36 : "auto" }}>
-                  <button
-                    onClick={() => setExpandedId(isExpanded ? null : conn.id)}
-                    className="btn btn-ghost"
-                    style={{ padding: "5px 10px", fontSize: 11 }}
-                    title="Preview message"
-                  >
-                    {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                    Message
-                  </button>
-                  <button
-                    onClick={() => copyMessage(conn)}
-                    className="btn btn-ghost"
-                    style={{ padding: "5px 10px", fontSize: 11 }}
-                    title="Copy message"
-                  >
-                    {copiedId === conn.id ? <CheckCircle size={13} color="var(--strong)" /> : <Copy size={13} />}
-                  </button>
-                  <a
-                    href={conn.url || linkedInSearch(conn.name)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn btn-ghost"
-                    style={{ padding: "5px 10px", fontSize: 11, textDecoration: "none" }}
-                    title="Open LinkedIn"
-                  >
-                    <ExternalLink size={13} />
-                  </a>
+                {/* Actions — Activate/Done + overflow menu */}
+                <div style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "center", width: isMobile ? "100%" : "auto", justifyContent: isMobile ? "flex-end" : "flex-start", minHeight: isMobile ? 36 : "auto", position: "relative" }}>
+                  <OverflowMenu
+                    connId={conn.id}
+                    isOpen={overflowOpenId === conn.id}
+                    onToggle={() => setOverflowOpenId(overflowOpenId === conn.id ? null : conn.id)}
+                    onDraftMessage={() => { setExpandedId(isExpanded ? null : conn.id); setOverflowOpenId(null); }}
+                    onCopyInfo={() => { copyMessage(conn); setOverflowOpenId(null); }}
+                    onOpenLinkedIn={() => { window.open(conn.url || linkedInSearch(conn.name), "_blank", "noopener,noreferrer"); setOverflowOpenId(null); }}
+                    copiedId={copiedId}
+                  />
                   <button
                     onClick={() => markDone(conn.id)}
                     className={`btn ${isDone ? "btn-ghost" : "btn-primary"}`}
@@ -261,6 +244,122 @@ export default function OutreachQueue({ connections, gapAnalysis }: Props) {
         Ranking based on: Granovetter (1973) weak-ties theory · Rajkumar et al. (2022) LinkedIn causal experiment
         · Network Archaeology Protocol, Section 6.3 of <em>The Invisible Network</em> (Yousif, 2026)
       </div>
+    </div>
+  );
+}
+
+function OverflowMenu({
+  connId,
+  isOpen,
+  onToggle,
+  onDraftMessage,
+  onCopyInfo,
+  onOpenLinkedIn,
+  copiedId,
+}: {
+  connId: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  onDraftMessage: () => void;
+  onCopyInfo: () => void;
+  onOpenLinkedIn: () => void;
+  copiedId: string | null;
+}) {
+  const menuRef = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (
+        menuRef.current && !menuRef.current.contains(e.target as Node) &&
+        btnRef.current && !btnRef.current.contains(e.target as Node)
+      ) {
+        onToggle();
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [isOpen, onToggle]);
+
+  const menuItemStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    width: "100%",
+    padding: "7px 12px",
+    background: "none",
+    border: "none",
+    color: "var(--text-secondary)",
+    fontSize: 12,
+    fontFamily: "var(--font-sans)",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+    textAlign: "left",
+    borderRadius: 4,
+    transition: "background 0.1s",
+  };
+
+  return (
+    <div style={{ position: "relative" }}>
+      <button
+        ref={btnRef}
+        onClick={onToggle}
+        className="btn btn-ghost"
+        style={{ padding: "5px 8px", fontSize: 11 }}
+        title="More actions"
+      >
+        <MoreHorizontal size={14} />
+      </button>
+
+      {isOpen && (
+        <div
+          ref={menuRef}
+          className="fade-in"
+          style={{
+            position: "absolute",
+            top: "100%",
+            right: 0,
+            zIndex: 50,
+            marginTop: 4,
+            background: "var(--bg-panel)",
+            border: "1px solid var(--border)",
+            borderRadius: 8,
+            padding: "4px",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.1)",
+            minWidth: 160,
+          }}
+        >
+          <button
+            style={menuItemStyle}
+            onClick={onDraftMessage}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg-hover)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "none"; }}
+          >
+            <ChevronDown size={12} />
+            Draft Message
+          </button>
+          <button
+            style={menuItemStyle}
+            onClick={onCopyInfo}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg-hover)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "none"; }}
+          >
+            <Copy size={12} />
+            {copiedId === connId ? "Copied!" : "Copy Info"}
+          </button>
+          <button
+            style={menuItemStyle}
+            onClick={onOpenLinkedIn}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg-hover)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "none"; }}
+          >
+            <ExternalLink size={12} />
+            Open LinkedIn
+          </button>
+        </div>
+      )}
     </div>
   );
 }

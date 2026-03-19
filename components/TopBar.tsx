@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Rabbit, Network, BarChart3, Search, Zap, RotateCcw, Settings, Menu, X } from "lucide-react";
 import type { Connection, GapAnalysis } from "@/lib/tieStrength";
 import type { ActivePanel } from "@/app/page";
@@ -24,13 +24,41 @@ const PANELS: { id: ActivePanel; label: string; shortLabel: string; icon: React.
   { id: "queue",  label: "Outreach Queue",  shortLabel: "Queue",   icon: <Zap size={14} />,       desc: "Who to activate this week" },
 ];
 
+function getHealthPillStyles(score: number) {
+  if (score >= 50) {
+    return { bg: "rgba(34,197,94,0.2)", color: "#22c55e" };
+  }
+  if (score >= 30) {
+    return { bg: "rgba(217,150,10,0.2)", color: "var(--warning)" };
+  }
+  return { bg: "rgba(220,38,38,0.2)", color: "var(--critical)" };
+}
+
 export default function TopBar({ connections, gapAnalysis, activePanel, setActivePanel, csvMeta, onReset, onOpenSettings }: Props) {
   const isMobile = useIsMobile();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [healthPopoverOpen, setHealthPopoverOpen] = useState(false);
+  const healthPillRef = useRef<HTMLButtonElement>(null);
+  const healthPopoverRef = useRef<HTMLDivElement>(null);
+
   const weakCount = connections.filter(c => c.tieCategory === "weak").length;
-  const highConf = connections.filter(c => c.confidenceLevel === "high").length;
-  const medConf = connections.filter(c => c.confidenceLevel === "medium").length;
-  const lowConf = connections.filter(c => c.confidenceLevel === "low").length;
+  const healthScore = gapAnalysis.networkHealthScore;
+  const pillStyles = getHealthPillStyles(healthScore);
+
+  // Close health popover on outside click
+  useEffect(() => {
+    if (!healthPopoverOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (
+        healthPillRef.current && !healthPillRef.current.contains(e.target as Node) &&
+        healthPopoverRef.current && !healthPopoverRef.current.contains(e.target as Node)
+      ) {
+        setHealthPopoverOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [healthPopoverOpen]);
 
   if (isMobile) {
     return (
@@ -62,11 +90,32 @@ export default function TopBar({ connections, gapAnalysis, activePanel, setActiv
             </span>
           </Link>
 
+          {/* Health pill */}
+          <button
+            ref={healthPillRef}
+            onClick={() => setHealthPopoverOpen(!healthPopoverOpen)}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 4,
+              padding: "3px 8px", borderRadius: 12,
+              background: pillStyles.bg, color: pillStyles.color,
+              border: "none", cursor: "pointer",
+              fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 600,
+              lineHeight: 1,
+            }}
+            title="Network health"
+          >
+            <span style={{
+              width: 6, height: 6, borderRadius: "50%",
+              background: pillStyles.color, flexShrink: 0,
+            }} />
+            {healthScore}
+          </button>
+
           {/* Settings */}
           <button
             className="btn btn-ghost"
             onClick={onOpenSettings}
-            style={{ padding: "4px 8px", fontSize: 11, height: 28, border: "none" }}
+            style={{ padding: "4px 8px", fontSize: 11, height: 28, border: "none", marginLeft: 4 }}
             title="AI Settings"
           >
             <Settings size={13} />
@@ -82,7 +131,7 @@ export default function TopBar({ connections, gapAnalysis, activePanel, setActiv
           </button>
         </div>
 
-        {/* Mobile nav tabs — horizontally scrollable */}
+        {/* Mobile nav tabs */}
         <div style={{
           display: "flex",
           gap: 2,
@@ -106,7 +155,7 @@ export default function TopBar({ connections, gapAnalysis, activePanel, setActiv
           ))}
         </div>
 
-        {/* Mobile dropdown menu */}
+        {/* Mobile dropdown menu — all stats + file info + reset */}
         {menuOpen && (
           <div
             className="fade-in"
@@ -135,10 +184,9 @@ export default function TopBar({ connections, gapAnalysis, activePanel, setActiv
               <Stat label="connections" value={connections.length} />
               <Stat label="bridges" value={connections.filter(c => c.isBridge).length} color="var(--strong)" />
               <Stat label="weak ties" value={weakCount} color="var(--weak)" />
-              <Stat label="confidence" value={`${highConf}/${medConf}/${lowConf}`} color="var(--text-secondary)" />
-              <Stat label="health" value={`${gapAnalysis.networkHealthScore}%`} color={
-                gapAnalysis.networkHealthScore > 60 ? "var(--strong)"
-                : gapAnalysis.networkHealthScore > 35 ? "var(--moderate)"
+              <Stat label="health" value={`${healthScore}%`} color={
+                healthScore > 60 ? "var(--strong)"
+                : healthScore > 35 ? "var(--moderate)"
                 : "var(--critical)"
               } />
             </div>
@@ -164,11 +212,38 @@ export default function TopBar({ connections, gapAnalysis, activePanel, setActiv
             )}
           </div>
         )}
+
+        {/* Health popover (mobile) */}
+        {healthPopoverOpen && (
+          <div
+            ref={healthPopoverRef}
+            className="fade-in"
+            style={{
+              position: "absolute",
+              top: 48,
+              right: 12,
+              zIndex: 60,
+              background: "var(--bg-panel)",
+              border: "1px solid var(--border)",
+              borderRadius: 10,
+              padding: "14px 16px",
+              minWidth: 220,
+              boxShadow: "0 8px 24px rgba(0,0,0,0.1)",
+            }}
+          >
+            <HealthPopoverContent
+              connections={connections}
+              gapAnalysis={gapAnalysis}
+              csvMeta={csvMeta}
+              onReset={() => { onReset(); setHealthPopoverOpen(false); }}
+            />
+          </div>
+        )}
       </>
     );
   }
 
-  // Desktop layout (unchanged)
+  // Desktop layout
   return (
     <div style={{
       background: "var(--bg-panel)",
@@ -179,6 +254,7 @@ export default function TopBar({ connections, gapAnalysis, activePanel, setActiv
       gap: 0,
       height: 52,
       flexShrink: 0,
+      position: "relative",
     }}>
       {/* Logo */}
       <Link
@@ -215,41 +291,51 @@ export default function TopBar({ connections, gapAnalysis, activePanel, setActiv
         ))}
       </div>
 
-      {/* Stats */}
-      <div style={{
-        display: "flex", alignItems: "center", gap: 16,
-        paddingLeft: 20, borderLeft: "1px solid var(--border)",
-        fontFamily: "var(--font-mono)", fontSize: 12,
-      }}>
-        <Stat label="connections" value={connections.length} />
-        <Stat label="bridges" value={connections.filter(c => c.isBridge).length} color="var(--strong)" />
-        <Stat label="weak ties" value={weakCount} color="var(--weak)" />
-        <Stat label="confidence" value={`${highConf}/${medConf}/${lowConf}`} color="var(--text-secondary)" />
-        <Stat label="health" value={`${gapAnalysis.networkHealthScore}%`} color={
-          gapAnalysis.networkHealthScore > 60 ? "var(--strong)"
-          : gapAnalysis.networkHealthScore > 35 ? "var(--moderate)"
-          : "var(--critical)"
-        } />
-      </div>
+      {/* Health pill */}
+      <button
+        ref={healthPillRef}
+        onClick={() => setHealthPopoverOpen(!healthPopoverOpen)}
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 5,
+          padding: "4px 10px", borderRadius: 12,
+          background: pillStyles.bg, color: pillStyles.color,
+          border: "none", cursor: "pointer",
+          fontFamily: "var(--font-mono)", fontSize: 12, fontWeight: 600,
+          lineHeight: 1, marginRight: 8,
+        }}
+        title="Network health — click for details"
+      >
+        <span style={{
+          width: 7, height: 7, borderRadius: "50%",
+          background: pillStyles.color, flexShrink: 0,
+        }} />
+        {healthScore}
+      </button>
 
-      {/* Meta + reset */}
-      {csvMeta && (
-        <div style={{
-          display: "flex", alignItems: "center", gap: 12,
-          paddingLeft: 20, borderLeft: "1px solid var(--border)",
-          marginLeft: 16,
-        }}>
-          <span style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
-            {csvMeta.filename} - {csvMeta.generatedAt}
-          </span>
-          <button
-            className="btn btn-ghost"
-            onClick={onReset}
-            style={{ padding: "4px 8px", fontSize: 11, height: 28 }}
-            title="Upload new CSV"
-          >
-            <RotateCcw size={11} />
-          </button>
+      {/* Health popover (desktop) */}
+      {healthPopoverOpen && (
+        <div
+          ref={healthPopoverRef}
+          className="fade-in"
+          style={{
+            position: "absolute",
+            top: 52,
+            right: 48,
+            zIndex: 60,
+            background: "var(--bg-panel)",
+            border: "1px solid var(--border)",
+            borderRadius: 10,
+            padding: "16px 18px",
+            minWidth: 260,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.1)",
+          }}
+        >
+          <HealthPopoverContent
+            connections={connections}
+            gapAnalysis={gapAnalysis}
+            csvMeta={csvMeta}
+            onReset={() => { onReset(); setHealthPopoverOpen(false); }}
+          />
         </div>
       )}
 
@@ -257,11 +343,73 @@ export default function TopBar({ connections, gapAnalysis, activePanel, setActiv
       <button
         className="btn btn-ghost"
         onClick={onOpenSettings}
-        style={{ padding: "4px 8px", fontSize: 11, height: 28, marginLeft: csvMeta ? 4 : 16 }}
+        style={{ padding: "4px 8px", fontSize: 11, height: 28 }}
         title="AI Settings"
       >
         <Settings size={13} />
       </button>
+    </div>
+  );
+}
+
+/** Popover content shared between desktop and mobile health pill */
+function HealthPopoverContent({
+  connections,
+  gapAnalysis,
+  csvMeta,
+  onReset,
+}: {
+  connections: Connection[];
+  gapAnalysis: GapAnalysis;
+  csvMeta: { filename: string; generatedAt: string } | null;
+  onReset: () => void;
+}) {
+  const weakCount = connections.filter(c => c.tieCategory === "weak").length;
+  const healthScore = gapAnalysis.networkHealthScore;
+  const healthColor = healthScore > 60 ? "var(--strong)" : healthScore > 35 ? "var(--moderate)" : "var(--critical)";
+  const healthLabel = healthScore > 60 ? "Healthy" : healthScore > 35 ? "Moderate" : "Needs Work";
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10, fontFamily: "var(--font-mono)", fontSize: 12 }}>
+      {/* Health score */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, paddingBottom: 8, borderBottom: "1px solid var(--border)" }}>
+        <span style={{ fontSize: 20, fontWeight: 600, color: healthColor }}>{healthScore}%</span>
+        <span style={{ fontSize: 11, color: healthColor }}>{healthLabel}</span>
+      </div>
+
+      {/* Stats */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <PopoverStat label="Connections" value={connections.length} />
+        <PopoverStat label="Bridges" value={connections.filter(c => c.isBridge).length} color="var(--strong)" />
+        <PopoverStat label="Weak ties" value={weakCount} color="var(--weak)" />
+        <PopoverStat label="Health" value={`${healthScore}%`} color={healthColor} />
+      </div>
+
+      {/* File metadata */}
+      {csvMeta && (
+        <div style={{ paddingTop: 8, borderTop: "1px solid var(--border)", fontSize: 11, color: "var(--text-muted)" }}>
+          {csvMeta.filename} - {csvMeta.generatedAt}
+        </div>
+      )}
+
+      {/* Reset button */}
+      <button
+        className="btn btn-ghost"
+        onClick={onReset}
+        style={{ padding: "5px 10px", fontSize: 11, height: 28, justifyContent: "center", width: "100%", marginTop: 2 }}
+      >
+        <RotateCcw size={11} />
+        Reset data
+      </button>
+    </div>
+  );
+}
+
+function PopoverStat({ label, value, color }: { label: string; value: string | number; color?: string }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <span style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</span>
+      <span style={{ fontWeight: 600, color: color || "var(--text-primary)", fontSize: 13 }}>{value}</span>
     </div>
   );
 }

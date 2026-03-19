@@ -9,6 +9,7 @@ import {
   getMissingEnrichmentFiles,
   shouldShowBanner,
 } from "@/lib/enrichBannerLogic";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 // Re-export pure functions so page.tsx can import from this file
 export { getMissingEnrichmentFiles, shouldShowBanner };
@@ -28,6 +29,7 @@ export default function EnrichBanner({
 }: EnrichBannerProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isMobile = useIsMobile();
 
   const loadedSet = new Set(
     (enrichmentSummary?.filesLoaded ?? []).map((f) => f.toLowerCase())
@@ -130,6 +132,148 @@ export default function EnrichBanner({
     );
   }
 
+  const dismissButton = (
+    <button
+      onClick={() => {
+        try {
+          localStorage.setItem(DISMISS_KEY, "true");
+        } catch {}
+        window.dispatchEvent(new Event("enrich-banner-dismiss"));
+      }}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 4,
+        padding: "4px 10px",
+        borderRadius: 6,
+        background: "none",
+        border: "1px solid var(--border)",
+        color: "var(--text-muted)",
+        fontSize: 11,
+        cursor: "pointer",
+        flexShrink: 0,
+        fontFamily: "var(--font-sans)",
+        transition: "all 0.15s",
+        whiteSpace: "nowrap",
+        ...(isMobile ? { flex: 1, justifyContent: "center" } : {}),
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = "var(--accent-dim)";
+        e.currentTarget.style.color = "var(--text-secondary)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = "var(--border)";
+        e.currentTarget.style.color = "var(--text-muted)";
+      }}
+    >
+      <X size={10} />
+      I'll do this later
+    </button>
+  );
+
+  const browseButton = (
+    <button
+      onClick={() => fileInputRef.current?.click()}
+      className="btn btn-primary"
+      style={{
+        padding: "5px 14px",
+        fontSize: 12,
+        flexShrink: 0,
+        whiteSpace: "nowrap",
+        ...(isMobile ? { flex: 1 } : {}),
+      }}
+    >
+      Browse files
+    </button>
+  );
+
+  const fileInput = (
+    <input
+      ref={fileInputRef}
+      type="file"
+      accept=".csv,.zip"
+      multiple
+      onChange={handleFileInput}
+      style={{ display: "none" }}
+    />
+  );
+
+  if (isMobile) {
+    return (
+      <div
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 10,
+          padding: 12,
+          background: isDragOver
+            ? "rgba(108, 75, 244, 0.08)"
+            : "var(--accent-glow)",
+          borderBottom: isDragOver
+            ? "1px solid rgba(108, 75, 244, 0.25)"
+            : "1px solid rgba(108, 75, 244, 0.08)",
+          flexShrink: 0,
+          transition: "background 0.15s, border-color 0.15s",
+          cursor: "default",
+        }}
+      >
+        {/* Text block — full width */}
+        <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+          <Upload size={14} color="var(--accent)" style={{ flexShrink: 0, marginTop: 2 }} />
+          <div
+            style={{
+              fontSize: 13,
+              color: "var(--text-secondary)",
+              lineHeight: 1.4,
+            }}
+          >
+            Enhance your analysis — drop your LinkedIn zip or additional files
+            here to unlock interaction signals
+          </div>
+        </div>
+
+        {/* File indicators — 2-column grid */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+          {ENRICHMENT_FILES.map((f) => {
+            const isLoaded = loadedSet.has(f.key);
+            return (
+              <span
+                key={f.key}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  fontSize: 11,
+                  color: isLoaded ? "#10b981" : "var(--text-muted)",
+                  fontFamily: "var(--font-mono)",
+                }}
+              >
+                {isLoaded ? (
+                  <CheckCircle size={10} />
+                ) : (
+                  <AlertTriangle size={10} />
+                )}
+                {f.label}
+              </span>
+            );
+          })}
+        </div>
+
+        {/* Buttons row — full width */}
+        <div style={{ display: "flex", gap: 8 }}>
+          {browseButton}
+          {dismissButton}
+        </div>
+
+        {fileInput}
+      </div>
+    );
+  }
+
+  // Desktop layout (unchanged)
   return (
     <div
       onDragOver={handleDragOver}
@@ -193,65 +337,9 @@ export default function EnrichBanner({
         </div>
       </div>
 
-      <button
-        onClick={() => fileInputRef.current?.click()}
-        className="btn btn-primary"
-        style={{
-          padding: "5px 14px",
-          fontSize: 12,
-          flexShrink: 0,
-          whiteSpace: "nowrap",
-        }}
-      >
-        Browse files
-      </button>
-
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".csv,.zip"
-        multiple
-        onChange={handleFileInput}
-        style={{ display: "none" }}
-      />
-
-      <button
-        onClick={() => {
-          try {
-            localStorage.setItem(DISMISS_KEY, "true");
-          } catch {}
-          // Force re-render via parent — parent checks localStorage
-          // We trigger a custom event so parent can react
-          window.dispatchEvent(new Event("enrich-banner-dismiss"));
-        }}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 4,
-          padding: "4px 10px",
-          borderRadius: 6,
-          background: "none",
-          border: "1px solid var(--border)",
-          color: "var(--text-muted)",
-          fontSize: 11,
-          cursor: "pointer",
-          flexShrink: 0,
-          fontFamily: "var(--font-sans)",
-          transition: "all 0.15s",
-          whiteSpace: "nowrap",
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.borderColor = "var(--accent-dim)";
-          e.currentTarget.style.color = "var(--text-secondary)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.borderColor = "var(--border)";
-          e.currentTarget.style.color = "var(--text-muted)";
-        }}
-      >
-        <X size={10} />
-        I'll do this later
-      </button>
+      {browseButton}
+      {fileInput}
+      {dismissButton}
     </div>
   );
 }
