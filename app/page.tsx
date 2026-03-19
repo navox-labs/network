@@ -29,6 +29,8 @@ import {
   parseInvitations,
   computeConnectionEnrichments,
   buildEnrichmentSummary,
+  buildEnrichmentSummaryFromConnections,
+  detectUserProfileUrl,
   normalizeLinkedInUrl,
   type EnrichmentSummary,
   type ConnectionEnrichment,
@@ -259,9 +261,12 @@ export default function Home() {
           ? Papa.parse<Record<string, string>>(fileMap.get("invitations.csv")!, { header: true, skipEmptyLines: true }).data
           : [];
 
-        // Detect user's own profile URL from Positions.csv or messages
-        // (not critical — enrichment works without it)
-        const messages = parseMessages(msgRows);
+        // Detect user's own profile URL from messages for accurate latent-tie counting
+        const userProfileUrl = detectUserProfileUrl(
+          parseMessages(msgRows), parsed
+        );
+
+        const messages = parseMessages(msgRows, userProfileUrl);
         const endorsements = parseEndorsements(endorseRows);
         const recommendations = parseRecommendations(recRows);
         const invitations = parseInvitations(invRows);
@@ -279,7 +284,8 @@ export default function Home() {
           invitations,
           messages.length,
           messages,
-          parsed
+          parsed,
+          userProfileUrl
         );
       }
 
@@ -340,7 +346,9 @@ export default function Home() {
     setActivePanel("graph");
     setDraftMessages(new Map());
     setEnrichmentSummary(null);
+    setBannerDismissed(false);
     localStorage.removeItem("navox-network-data");
+    localStorage.removeItem("navox-enrich-banner-dismissed");
   };
 
   // Handle enrichment file drops from EnrichBanner
@@ -375,7 +383,12 @@ export default function Home() {
         ? Papa.parse<Record<string, string>>(fileMap.get("invitations.csv")!, { header: true, skipEmptyLines: true }).data
         : [];
 
-      const messages = parseMessages(msgRows);
+      // Detect user's own profile URL for accurate latent-tie counting
+      const userProfileUrl = detectUserProfileUrl(
+        parseMessages(msgRows), connections
+      );
+
+      const messages = parseMessages(msgRows, userProfileUrl);
       const endorsements = parseEndorsements(endorseRows);
       const recommendations = parseRecommendations(recRows);
       const invitations = parseInvitations(invRows);
@@ -396,13 +409,14 @@ export default function Home() {
       // Ensure connections.csv is always in the list
       if (!allFiles.includes("connections.csv")) allFiles.unshift("connections.csv");
 
-      const enrichment = buildEnrichmentSummary(
+      // Build summary from final connection state (not just current drop)
+      // so stats accumulate correctly across multiple enrichment drops
+      const enrichment = buildEnrichmentSummaryFromConnections(
         allFiles,
-        enrichmentMap,
+        updatedConns,
         invitations,
-        messages.length,
         messages,
-        updatedConns
+        userProfileUrl
       );
 
       // Recalculate graph and gap analysis

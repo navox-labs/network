@@ -8,7 +8,9 @@ import {
   matchMessagesToConnections,
   computeConnectionEnrichments,
   buildEnrichmentSummary,
+  buildEnrichmentSummaryFromConnections,
   countUniqueUnmatchedSenders,
+  detectUserProfileUrl,
   type RawMessageRow,
   type RawEndorsementRow,
   type RawRecommendationRow,
@@ -625,5 +627,160 @@ describe("countUniqueUnmatchedSenders", () => {
     ];
 
     expect(countUniqueUnmatchedSenders(messages, connections)).toBe(1);
+  });
+
+  it("excludes userProfileUrl from unmatched count", () => {
+    const USER = "https://www.linkedin.com/in/me";
+    const connections = [makeConnection({ id: "1", url: ALICE })];
+
+    const messages: MessageRecord[] = [
+      msg(USER, "2024-06-01", "sent"),
+      msg(USER, "2024-06-02", "sent"),
+      msg(STRANGER, "2024-06-03", "received"),
+    ];
+
+    // Without userProfileUrl, user counts as unmatched
+    expect(countUniqueUnmatchedSenders(messages, connections)).toBe(2);
+
+    // With userProfileUrl, user is excluded
+    expect(countUniqueUnmatchedSenders(messages, connections, USER)).toBe(1);
+  });
+
+  it("handles userProfileUrl with different casing", () => {
+    const USER = "https://www.linkedin.com/in/Me";
+    const connections = [makeConnection({ id: "1", url: ALICE })];
+
+    const messages: MessageRecord[] = [
+      msg("https://www.linkedin.com/in/me", "2024-06-01", "sent"),
+    ];
+
+    expect(countUniqueUnmatchedSenders(messages, connections, USER)).toBe(0);
+  });
+});
+
+// ── detectUserProfileUrl ────────────────────────────────────────────────
+
+describe("detectUserProfileUrl", () => {
+  const ALICE = "https://www.linkedin.com/in/alice";
+  const BOB = "https://www.linkedin.com/in/bob";
+  const USER = "https://www.linkedin.com/in/me";
+
+  it("detects user as most frequent non-connection sender", () => {
+    const connections = [
+      makeConnection({ id: "1", url: ALICE }),
+      makeConnection({ id: "2", url: BOB }),
+    ];
+
+    const messages: MessageRecord[] = [
+      msg(USER, "2024-06-01", "sent"),
+      msg(USER, "2024-06-02", "sent"),
+      msg(USER, "2024-06-03", "sent"),
+      msg(ALICE, "2024-06-04", "received"),
+      msg(BOB, "2024-06-05", "received"),
+    ];
+
+    expect(detectUserProfileUrl(messages, connections)).toBe(USER);
+  });
+
+  it("returns undefined for empty messages", () => {
+    const connections = [makeConnection({ id: "1", url: ALICE })];
+    expect(detectUserProfileUrl([], connections)).toBeUndefined();
+  });
+
+  it("returns undefined when all senders are connections", () => {
+    const connections = [
+      makeConnection({ id: "1", url: ALICE }),
+      makeConnection({ id: "2", url: BOB }),
+    ];
+
+    const messages: MessageRecord[] = [
+      msg(ALICE, "2024-06-01", "received"),
+      msg(BOB, "2024-06-02", "received"),
+    ];
+
+    expect(detectUserProfileUrl(messages, connections)).toBeUndefined();
+  });
+
+  it("requires at least 2 messages to identify user (avoids false positives)", () => {
+    const connections = [makeConnection({ id: "1", url: ALICE })];
+
+    const messages: MessageRecord[] = [
+      msg(USER, "2024-06-01", "sent"),
+    ];
+
+    expect(detectUserProfileUrl(messages, connections)).toBeUndefined();
+  });
+});
+
+// ── buildEnrichmentSummaryFromConnections ────────────────────────────────
+
+describe("buildEnrichmentSummaryFromConnections", () => {
+  it("builds summary from final connection state", () => {
+    const connections = [
+      makeConnection({ id: "1", url: "https://www.linkedin.com/in/alice", messageCount: 5, endorsementReceived: true }),
+      makeConnection({ id: "2", url: "https://www.linkedin.com/in/bob", messageCount: 3, recommendationReceived: true }),
+      makeConnection({ id: "3", url: "https://www.linkedin.com/in/carol", messageCount: 0 }),
+    ];
+
+    const invitations = [
+      { profileUrl: "https://www.linkedin.com/in/alice", direction: "sent" as const, sentAt: "2024-01-01" },
+      { profileUrl: "https://www.linkedin.com/in/bob", direction: "received" as const, sentAt: "2024-02-01" },
+    ];
+
+    const summary = buildEnrichmentSummaryFromConnections(
+      ["connections.csv", "messages.csv"],
+      connections,
+      invitations
+    );
+
+    expect(summary.messageStats.totalMatched).toBe(2); // alice + bob
+    expect(summary.endorsementCount).toBe(1); // alice
+    expect(summary.recommendationCount).toBe(1); // bob
+    expect(summary.invitationStats.sentByUser).toBe(1);
+    expect(summary.invitationStats.receivedByUser).toBe(1);
+  });
+
+  it("reflects cumulative state after multiple enrichment drops", () => {
+    // Simulate: first drop added messages to alice, second drop added endorsement to bob
+    const connections = [
+      makeConnection({ id: "1", url: "https://www.linkedin.com/in/alice", messageCount: 5 }),
+      makeConnection({ id: "2", url: "https://www.linkedin.com/in/bob", endorsementReceived: true }),
+    ];
+
+    const summary = buildEnrichmentSummaryFromConnections(
+      ["connections.csv", "messages.csv", "endorsements_received_info.csv"],
+      connections,
+      []
+    );
+
+    expect(summary.messageStats.totalMatched).toBe(1); // alice
+    expect(summary.endorsementCount).toBe(1); // bob
+    expect(summary.filesLoaded).toHaveLength(3);
+  });
+
+  it("excludes user profile URL from unmatched senders", () => {
+    const USER = "https://www.linkedin.com/in/me";
+    const STRANGER = "https://www.linkedin.com/in/stranger";
+    const ALICE = "https://www.linkedin.com/in/alice";
+
+    const connections = [
+      makeConnection({ id: "1", url: ALICE }),
+    ];
+
+    const messages: MessageRecord[] = [
+      msg(USER, "2024-06-01", "sent"),
+      msg(STRANGER, "2024-06-02", "received"),
+      msg(ALICE, "2024-06-03", "received"),
+    ];
+
+    const summary = buildEnrichmentSummaryFromConnections(
+      ["connections.csv", "messages.csv"],
+      connections,
+      [],
+      messages,
+      USER
+    );
+
+    expect(summary.messageStats.uniqueUnmatchedSenders).toBe(1); // only stranger, not user
   });
 });

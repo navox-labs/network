@@ -445,22 +445,66 @@ export function computeConnectionEnrichments(
  */
 export function countUniqueUnmatchedSenders(
   messages: MessageRecord[],
-  connections: Connection[]
+  connections: Connection[],
+  userProfileUrl?: string
 ): number {
   const connectionUrls = new Set<string>();
   for (const c of connections) {
     if (c.url) connectionUrls.add(normalizeLinkedInUrl(c.url));
   }
 
+  const normalizedUserUrl = userProfileUrl ? normalizeLinkedInUrl(userProfileUrl) : "";
+
   const unmatchedSenders = new Set<string>();
   for (const m of messages) {
     if (!m.senderProfileUrl) continue;
+    if (normalizedUserUrl && m.senderProfileUrl === normalizedUserUrl) continue;
     if (!connectionUrls.has(m.senderProfileUrl)) {
       unmatchedSenders.add(m.senderProfileUrl);
     }
   }
 
   return unmatchedSenders.size;
+}
+
+/**
+ * Detect the user's own profile URL from messages.
+ * Strategy: find the most frequent sender URL that isn't a connection.
+ * In a typical LinkedIn export, the user's own URL appears as sender
+ * in all their sent messages — making it the most frequent non-connection sender.
+ */
+export function detectUserProfileUrl(
+  messages: MessageRecord[],
+  connections: Connection[]
+): string | undefined {
+  if (messages.length === 0) return undefined;
+
+  const connectionUrls = new Set<string>();
+  for (const c of connections) {
+    if (c.url) connectionUrls.add(normalizeLinkedInUrl(c.url));
+  }
+
+  const senderCounts = new Map<string, number>();
+  for (const m of messages) {
+    if (!m.senderProfileUrl) continue;
+    if (connectionUrls.has(m.senderProfileUrl)) continue;
+    senderCounts.set(m.senderProfileUrl, (senderCounts.get(m.senderProfileUrl) || 0) + 1);
+  }
+
+  if (senderCounts.size === 0) return undefined;
+
+  let maxUrl = "";
+  let maxCount = 0;
+  senderCounts.forEach((count, url) => {
+    if (count > maxCount) {
+      maxCount = count;
+      maxUrl = url;
+    }
+  });
+
+  // Only consider it the user if they appear in a significant number of messages
+  // (at least 2, to avoid false positives with single-message strangers)
+  return maxCount >= 2 ? maxUrl : undefined;
 }
 
 /**
@@ -472,7 +516,8 @@ export function buildEnrichmentSummary(
   invitations: InvitationRecord[],
   totalMessageCount: number,
   messages: MessageRecord[] = [],
-  connections: Connection[] = []
+  connections: Connection[] = [],
+  userProfileUrl?: string
 ): EnrichmentSummary {
   let totalMatched = 0;
   let endorsementCount = 0;
@@ -492,7 +537,7 @@ export function buildEnrichmentSummary(
   }
 
   const uniqueUnmatchedSenders = messages.length > 0
-    ? countUniqueUnmatchedSenders(messages, connections)
+    ? countUniqueUnmatchedSenders(messages, connections, userProfileUrl)
     : 0;
 
   return {
@@ -500,6 +545,52 @@ export function buildEnrichmentSummary(
     messageStats: {
       totalMatched,
       totalUnmatched: Math.max(0, totalMessageCount - totalMatched),
+      uniqueUnmatchedSenders,
+    },
+    endorsementCount,
+    recommendationCount,
+    invitationStats: { sentByUser, receivedByUser },
+  };
+}
+
+/**
+ * Build enrichment summary by scanning final connection state.
+ * Used after incremental enrichment drops so stats reflect cumulative state
+ * rather than only the latest drop.
+ */
+export function buildEnrichmentSummaryFromConnections(
+  filesLoaded: string[],
+  connections: Connection[],
+  invitations: InvitationRecord[],
+  messages: MessageRecord[] = [],
+  userProfileUrl?: string
+): EnrichmentSummary {
+  let totalMatched = 0;
+  let endorsementCount = 0;
+  let recommendationCount = 0;
+
+  for (const c of connections) {
+    if ((c.messageCount ?? 0) > 0) totalMatched++;
+    if (c.endorsementReceived) endorsementCount++;
+    if (c.recommendationReceived) recommendationCount++;
+  }
+
+  let sentByUser = 0;
+  let receivedByUser = 0;
+  for (const inv of invitations) {
+    if (inv.direction === "sent") sentByUser++;
+    else receivedByUser++;
+  }
+
+  const uniqueUnmatchedSenders = messages.length > 0
+    ? countUniqueUnmatchedSenders(messages, connections, userProfileUrl)
+    : 0;
+
+  return {
+    filesLoaded,
+    messageStats: {
+      totalMatched,
+      totalUnmatched: Math.max(0, messages.length - totalMatched),
       uniqueUnmatchedSenders,
     },
     endorsementCount,
