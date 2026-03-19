@@ -58,6 +58,7 @@ export interface EnrichmentSummary {
   messageStats: {
     totalMatched: number;
     totalUnmatched: number;
+    uniqueUnmatchedSenders: number;
   };
   endorsementCount: number;
   recommendationCount: number;
@@ -438,13 +439,40 @@ export function computeConnectionEnrichments(
 }
 
 /**
+ * Count unique sender profile URLs in messages that don't match any
+ * connection URL. These are "latent ties" — people who messaged but
+ * aren't connected.
+ */
+export function countUniqueUnmatchedSenders(
+  messages: MessageRecord[],
+  connections: Connection[]
+): number {
+  const connectionUrls = new Set<string>();
+  for (const c of connections) {
+    if (c.url) connectionUrls.add(normalizeLinkedInUrl(c.url));
+  }
+
+  const unmatchedSenders = new Set<string>();
+  for (const m of messages) {
+    if (!m.senderProfileUrl) continue;
+    if (!connectionUrls.has(m.senderProfileUrl)) {
+      unmatchedSenders.add(m.senderProfileUrl);
+    }
+  }
+
+  return unmatchedSenders.size;
+}
+
+/**
  * Build the aggregate enrichment summary for localStorage.
  */
 export function buildEnrichmentSummary(
   filesLoaded: string[],
   enrichmentMap: Map<string, ConnectionEnrichment>,
   invitations: InvitationRecord[],
-  totalMessageCount: number
+  totalMessageCount: number,
+  messages: MessageRecord[] = [],
+  connections: Connection[] = []
 ): EnrichmentSummary {
   let totalMatched = 0;
   let endorsementCount = 0;
@@ -463,11 +491,16 @@ export function buildEnrichmentSummary(
     else receivedByUser++;
   }
 
+  const uniqueUnmatchedSenders = messages.length > 0
+    ? countUniqueUnmatchedSenders(messages, connections)
+    : 0;
+
   return {
     filesLoaded,
     messageStats: {
       totalMatched,
       totalUnmatched: Math.max(0, totalMessageCount - totalMatched),
+      uniqueUnmatchedSenders,
     },
     endorsementCount,
     recommendationCount,

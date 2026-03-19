@@ -8,6 +8,7 @@ import {
   matchMessagesToConnections,
   computeConnectionEnrichments,
   buildEnrichmentSummary,
+  countUniqueUnmatchedSenders,
   type RawMessageRow,
   type RawEndorsementRow,
   type RawRecommendationRow,
@@ -499,5 +500,130 @@ describe("buildEnrichmentSummary", () => {
     const summary = buildEnrichmentSummary(["connections.csv"], enrichmentMap, [], 0);
     expect(summary.messageStats.totalMatched).toBe(0);
     expect(summary.messageStats.totalUnmatched).toBe(0);
+  });
+
+  it("computes uniqueUnmatchedSenders when messages and connections provided", () => {
+    const ALICE = "https://www.linkedin.com/in/alice";
+    const STRANGER1 = "https://www.linkedin.com/in/stranger1";
+    const STRANGER2 = "https://www.linkedin.com/in/stranger2";
+
+    const connections = [
+      makeConnection({ id: "1", url: ALICE }),
+    ];
+
+    const messages: MessageRecord[] = [
+      msg(ALICE, "2024-06-01", "received"),
+      msg(STRANGER1, "2024-06-02", "received"),
+      msg(STRANGER1, "2024-06-03", "received"), // same stranger, shouldn't double-count
+      msg(STRANGER2, "2024-06-04", "received"),
+    ];
+
+    const enrichmentMap = new Map<string, {
+      messageCount: number; lastMessageDate: string | null;
+      messageBidirectional: boolean; sentCount: number; receivedCount: number;
+      endorsementReceived: boolean; recommendationReceived: boolean;
+      initiatedBy: "user" | "them" | null;
+    }>();
+
+    const summary = buildEnrichmentSummary(
+      ["connections.csv", "messages.csv"],
+      enrichmentMap,
+      [],
+      4,
+      messages,
+      connections
+    );
+
+    expect(summary.messageStats.uniqueUnmatchedSenders).toBe(2);
+  });
+
+  it("uniqueUnmatchedSenders is 0 when no messages provided", () => {
+    const enrichmentMap = new Map<string, {
+      messageCount: number; lastMessageDate: string | null;
+      messageBidirectional: boolean; sentCount: number; receivedCount: number;
+      endorsementReceived: boolean; recommendationReceived: boolean;
+      initiatedBy: "user" | "them" | null;
+    }>();
+
+    const summary = buildEnrichmentSummary(
+      ["connections.csv"],
+      enrichmentMap,
+      [],
+      0
+    );
+
+    expect(summary.messageStats.uniqueUnmatchedSenders).toBe(0);
+  });
+});
+
+// ── countUniqueUnmatchedSenders ─────────────────────────────────────────
+
+describe("countUniqueUnmatchedSenders", () => {
+  const ALICE = "https://www.linkedin.com/in/alice";
+  const BOB = "https://www.linkedin.com/in/bob";
+  const STRANGER = "https://www.linkedin.com/in/stranger";
+
+  it("counts unique senders not in connections", () => {
+    const connections = [
+      makeConnection({ id: "1", url: ALICE }),
+    ];
+
+    const messages: MessageRecord[] = [
+      msg(ALICE, "2024-06-01", "received"),
+      msg(STRANGER, "2024-06-02", "received"),
+      msg(STRANGER, "2024-06-03", "received"), // duplicate sender
+    ];
+
+    expect(countUniqueUnmatchedSenders(messages, connections)).toBe(1);
+  });
+
+  it("returns 0 when all senders are connections", () => {
+    const connections = [
+      makeConnection({ id: "1", url: ALICE }),
+      makeConnection({ id: "2", url: BOB }),
+    ];
+
+    const messages: MessageRecord[] = [
+      msg(ALICE, "2024-06-01", "received"),
+      msg(BOB, "2024-06-02", "received"),
+    ];
+
+    expect(countUniqueUnmatchedSenders(messages, connections)).toBe(0);
+  });
+
+  it("returns 0 for empty messages", () => {
+    const connections = [makeConnection({ id: "1", url: ALICE })];
+    expect(countUniqueUnmatchedSenders([], connections)).toBe(0);
+  });
+
+  it("handles connections without URLs", () => {
+    const connections = [makeConnection({ id: "1", url: undefined })];
+    const messages: MessageRecord[] = [
+      msg(STRANGER, "2024-06-01", "received"),
+    ];
+    expect(countUniqueUnmatchedSenders(messages, connections)).toBe(1);
+  });
+
+  it("handles multiple unique unmatched senders", () => {
+    const connections = [makeConnection({ id: "1", url: ALICE })];
+
+    const messages: MessageRecord[] = [
+      msg("https://www.linkedin.com/in/s1", "2024-06-01", "received"),
+      msg("https://www.linkedin.com/in/s2", "2024-06-02", "received"),
+      msg("https://www.linkedin.com/in/s3", "2024-06-03", "received"),
+    ];
+
+    expect(countUniqueUnmatchedSenders(messages, connections)).toBe(3);
+  });
+
+  it("skips messages with empty sender URLs", () => {
+    const connections = [makeConnection({ id: "1", url: ALICE })];
+
+    const messages: MessageRecord[] = [
+      msg("", "2024-06-01", "received"),
+      msg(STRANGER, "2024-06-02", "received"),
+    ];
+
+    expect(countUniqueUnmatchedSenders(messages, connections)).toBe(1);
   });
 });

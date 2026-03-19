@@ -46,6 +46,7 @@ import GapPanel from "@/components/GapPanel";
 import CompanySearch from "@/components/CompanySearch";
 import OutreachQueue from "@/components/OutreachQueue";
 import CoachBar from "@/components/CoachBar";
+import EnrichBanner, { shouldShowBanner } from "@/components/EnrichBanner";
 import AskCoachDialog from "@/components/AskCoachDialog";
 import SettingsDialog from "@/components/SettingsDialog";
 
@@ -64,6 +65,11 @@ export default function Home() {
   const [csvMeta, setCsvMeta] = useState<{ filename: string; generatedAt: string } | null>(null);
   const [enrichmentSummary, setEnrichmentSummary] = useState<EnrichmentSummary | null>(null);
 
+  // Enrichment banner state
+  const [isEnriching, setIsEnriching] = useState(false);
+  const [enrichResult, setEnrichResult] = useState<string | null>(null);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+
   // Coach state
   const [askCoachOpen, setAskCoachOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -76,6 +82,11 @@ export default function Home() {
 
   // Load from localStorage — handles both v1 and v2 schemas
   useEffect(() => {
+    try {
+      const dismissed = localStorage.getItem("navox-enrich-banner-dismissed");
+      if (dismissed === "true") setBannerDismissed(true);
+    } catch {}
+
     try {
       const raw = localStorage.getItem("navox-network-data");
       if (!raw) return;
@@ -102,6 +113,11 @@ export default function Home() {
       const ctx = buildAgentContext(conns, gaps);
       systemPromptRef.current = buildSystemPrompt(ctx);
     } catch {}
+
+    // Listen for banner dismiss event from EnrichBanner
+    const handleDismiss = () => setBannerDismissed(true);
+    window.addEventListener("enrich-banner-dismiss", handleDismiss);
+    return () => window.removeEventListener("enrich-banner-dismiss", handleDismiss);
   }, []);
 
   // Rebuild system prompt with navigation context for AskCoach
@@ -261,7 +277,9 @@ export default function Home() {
           fileSummary.loaded,
           enrichmentMap,
           invitations,
-          messages.length
+          messages.length,
+          messages,
+          parsed
         );
       }
 
@@ -324,6 +342,116 @@ export default function Home() {
     setEnrichmentSummary(null);
     localStorage.removeItem("navox-network-data");
   };
+
+  // Handle enrichment file drops from EnrichBanner
+  const handleEnrichFiles = useCallback(async (files: File[]) => {
+    if (connections.length === 0) return;
+
+    setIsEnriching(true);
+    setEnrichResult(null);
+
+    try {
+      const fileMap = await ingestFiles(files);
+
+      // Skip connections.csv — we don't want to re-parse connections
+      fileMap.delete("connections.csv");
+
+      if (fileMap.size === 0) {
+        setIsEnriching(false);
+        return;
+      }
+
+      // Parse enrichment CSVs
+      const msgRows = fileMap.has("messages.csv")
+        ? Papa.parse<Record<string, string>>(fileMap.get("messages.csv")!, { header: true, skipEmptyLines: true }).data
+        : [];
+      const endorseRows = fileMap.has("endorsements_received_info.csv")
+        ? Papa.parse<Record<string, string>>(fileMap.get("endorsements_received_info.csv")!, { header: true, skipEmptyLines: true }).data
+        : [];
+      const recRows = fileMap.has("recommendations_received.csv")
+        ? Papa.parse<Record<string, string>>(fileMap.get("recommendations_received.csv")!, { header: true, skipEmptyLines: true }).data
+        : [];
+      const invRows = fileMap.has("invitations.csv")
+        ? Papa.parse<Record<string, string>>(fileMap.get("invitations.csv")!, { header: true, skipEmptyLines: true }).data
+        : [];
+
+      const messages = parseMessages(msgRows);
+      const endorsements = parseEndorsements(endorseRows);
+      const recommendations = parseRecommendations(recRows);
+      const invitations = parseInvitations(invRows);
+
+      const enrichmentMap = computeConnectionEnrichments(
+        messages, endorsements, recommendations, invitations, connections
+      );
+
+      // Apply enrichment to existing connections (mutates in place)
+      const updatedConns = [...connections];
+      applyEnrichment(updatedConns, enrichmentMap, true);
+
+      // Merge loaded files with any previously loaded files
+      const previousFiles = enrichmentSummary?.filesLoaded ?? [];
+      const newFiles = Array.from(fileMap.keys());
+      const allFilesSet = new Set([...previousFiles, ...newFiles]);
+      const allFiles = Array.from(allFilesSet);
+      // Ensure connections.csv is always in the list
+      if (!allFiles.includes("connections.csv")) allFiles.unshift("connections.csv");
+
+      const enrichment = buildEnrichmentSummary(
+        allFiles,
+        enrichmentMap,
+        invitations,
+        messages.length,
+        messages,
+        updatedConns
+      );
+
+      // Recalculate graph and gap analysis
+      const graph = buildGraphData(updatedConns);
+      const gaps = analyzeGaps(updatedConns);
+
+      // Update state
+      setConnections(updatedConns);
+      setGraphData(graph);
+      setGapAnalysis(gaps);
+      setEnrichmentSummary(enrichment);
+
+      // Save to localStorage
+      try {
+        const storagePayload: Record<string, unknown> = {
+          schemaVersion: 2,
+          connections: updatedConns,
+          gapAnalysis: gaps,
+          uploadedAt: new Date().toISOString(),
+          enrichment,
+        };
+        localStorage.setItem("navox-network-data", JSON.stringify(storagePayload));
+      } catch {
+        console.warn("localStorage quota exceeded — data will not persist across refresh.");
+      }
+
+      // Rebuild system prompt
+      const ctx = buildAgentContext(updatedConns, gaps);
+      systemPromptRef.current = buildSystemPrompt(ctx);
+
+      // Count new signals for success message
+      let signalCount = 0;
+      enrichmentMap.forEach((e) => {
+        if (e.messageCount > 0) signalCount++;
+        if (e.endorsementReceived) signalCount++;
+        if (e.recommendationReceived) signalCount++;
+        if (e.initiatedBy) signalCount++;
+      });
+
+      setEnrichResult(`Analysis updated with ${signalCount} new interaction signals`);
+
+      // Auto-clear success message after 4 seconds
+      setTimeout(() => setEnrichResult(null), 4000);
+    } catch (e) {
+      console.error("Enrichment failed:", e);
+    } finally {
+      setIsEnriching(false);
+    }
+  }, [connections, enrichmentSummary]);
 
   // Draft message via AI (on-demand, cached)
   const handleDraftMessage = useCallback(async (conn: Connection) => {
@@ -404,6 +532,15 @@ export default function Home() {
         onAskCoach={() => setAskCoachOpen(true)}
       />
 
+      {(shouldShowBanner(connections.length > 0, enrichmentSummary, bannerDismissed) || isEnriching || enrichResult) && (
+        <EnrichBanner
+          enrichmentSummary={enrichmentSummary}
+          onEnrich={handleEnrichFiles}
+          isEnriching={isEnriching}
+          enrichResult={enrichResult}
+        />
+      )}
+
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
         {/* Graph always mounted, visibility toggled so force sim state persists */}
         <div style={{
@@ -431,6 +568,8 @@ export default function Home() {
               gapAnalysis={gapAnalysis}
               connections={connections}
               onSwitchToSearch={(query) => { setActivePanel("search"); }}
+              enrichmentSummary={enrichmentSummary}
+              totalConnections={connections.length}
             />
           </div>
         )}

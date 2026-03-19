@@ -2,6 +2,7 @@
 
 import { TrendingUp, Users, Zap, Info } from "lucide-react";
 import type { GapAnalysis, Connection, IndustryCluster } from "@/lib/tieStrength";
+import type { EnrichmentSummary } from "@/lib/enrichment";
 
 const CLUSTER_COLORS: Record<string, string> = {
   "Tech":             "#6366f1",
@@ -22,9 +23,11 @@ interface Props {
   gapAnalysis: GapAnalysis;
   connections: Connection[];
   onSwitchToSearch?: (query: string) => void;
+  enrichmentSummary?: EnrichmentSummary | null;
+  totalConnections?: number;
 }
 
-export default function GapPanel({ gapAnalysis, connections, onSwitchToSearch }: Props) {
+export default function GapPanel({ gapAnalysis, connections, onSwitchToSearch, enrichmentSummary, totalConnections: totalConnectionsProp }: Props) {
   const {
     totalConnections, avgTieStrength, bridgingCapitalScore,
     bondingCapitalScore, clusterDistribution = [], rolePercentages,
@@ -53,6 +56,44 @@ export default function GapPanel({ gapAnalysis, connections, onSwitchToSearch }:
           capital distribution — the key predictor of job mobility per the Invisible Network paper.
         </p>
       </div>
+
+      {/* Data Loaded section */}
+      {enrichmentSummary && (
+        <DataLoadedSection
+          enrichmentSummary={enrichmentSummary}
+          totalConnections={totalConnectionsProp ?? totalConnections}
+        />
+      )}
+
+      {/* Latent ties insight */}
+      {enrichmentSummary &&
+        enrichmentSummary.filesLoaded.some((f) => f.toLowerCase() === "messages.csv") &&
+        enrichmentSummary.messageStats.uniqueUnmatchedSenders > 0 && (
+        <div style={{
+          background: "rgba(108, 75, 244, 0.04)",
+          border: "1px solid rgba(108, 75, 244, 0.12)",
+          borderRadius: 10,
+          padding: "16px 18px",
+        }}>
+          <div style={{
+            fontSize: 12, color: "var(--accent)", letterSpacing: "0.05em",
+            textTransform: "uppercase", fontFamily: "var(--font-mono)", marginBottom: 8,
+          }}>
+            Latent Ties Detected
+          </div>
+          <p style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.6, marginBottom: 8 }}>
+            <strong style={{ color: "var(--text-primary)", fontFamily: "var(--font-mono)" }}>
+              {enrichmentSummary.messageStats.uniqueUnmatchedSenders}
+            </strong>{" "}
+            people messaged you who aren't in your connections. These are latent
+            ties — people who reached out but never connected. Per the Invisible
+            Network framework, these are worth reconnecting.
+          </p>
+          <p style={{ fontSize: 11, color: "var(--text-muted)", fontStyle: "italic", lineHeight: 1.4 }}>
+            Based on messages.csv sender URLs not matched to connections.csv
+          </p>
+        </div>
+      )}
 
       {/* Health score + key stats */}
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
@@ -267,6 +308,92 @@ function ClusterRow({ cluster, color, count, percentage }: {
   );
 }
 
+
+const DATA_FILES = [
+  { key: "connections.csv", label: "Connections" },
+  { key: "messages.csv", label: "Messages" },
+  { key: "endorsements_received_info.csv", label: "Endorsements" },
+  { key: "recommendations_received.csv", label: "Recommendations" },
+  { key: "invitations.csv", label: "Invitations" },
+] as const;
+
+function DataLoadedSection({
+  enrichmentSummary,
+  totalConnections,
+}: {
+  enrichmentSummary: EnrichmentSummary;
+  totalConnections: number;
+}) {
+  const loadedSet = new Set(
+    enrichmentSummary.filesLoaded.map((f) => f.toLowerCase())
+  );
+
+  const getDetail = (key: string): string => {
+    switch (key) {
+      case "connections.csv":
+        return `${totalConnections} connections`;
+      case "messages.csv":
+        if (!loadedSet.has(key)) return "not loaded (upload to improve accuracy)";
+        return `${enrichmentSummary.messageStats.totalMatched + enrichmentSummary.messageStats.totalUnmatched} messages, ${enrichmentSummary.messageStats.totalMatched} matched to connections`;
+      case "endorsements_received_info.csv":
+        if (!loadedSet.has(key)) return "not loaded (upload to improve accuracy)";
+        return `${enrichmentSummary.endorsementCount} endorsements matched`;
+      case "recommendations_received.csv":
+        if (!loadedSet.has(key)) return "not loaded";
+        return `${enrichmentSummary.recommendationCount} recommendations matched`;
+      case "invitations.csv":
+        if (!loadedSet.has(key)) return "not loaded";
+        return `${enrichmentSummary.invitationStats.sentByUser + enrichmentSummary.invitationStats.receivedByUser} invitations`;
+      default:
+        return "";
+    }
+  };
+
+  return (
+    <div style={{
+      background: "var(--bg-panel)",
+      border: "1px solid var(--border)",
+      borderRadius: 10,
+      padding: "16px 18px",
+    }}>
+      <div style={{
+        fontSize: 12, color: "var(--text-muted)", letterSpacing: "0.05em",
+        textTransform: "uppercase", fontFamily: "var(--font-mono)", marginBottom: 12,
+      }}>
+        Data Loaded
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {DATA_FILES.map((f) => {
+          const isLoaded = loadedSet.has(f.key);
+          return (
+            <div
+              key={f.key}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                fontSize: 13,
+                color: isLoaded ? "var(--text-secondary)" : "var(--text-muted)",
+              }}
+            >
+              <span style={{ color: isLoaded ? "#10b981" : "#f59e0b", flexShrink: 0 }}>
+                {isLoaded ? "\u2705" : "\u26A0\uFE0F"}
+              </span>
+              <span style={{ fontWeight: 500 }}>{f.label}</span>
+              <span style={{
+                fontSize: 11,
+                color: "var(--text-muted)",
+                fontFamily: "var(--font-mono)",
+              }}>
+                — {getDetail(f.key)}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function InsightCard({ insight, rank }: { insight: any; rank: number }) {
   const typeColors: Record<string, string> = {
