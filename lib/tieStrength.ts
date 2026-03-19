@@ -915,6 +915,51 @@ export function analyzeGaps(connections: Connection[]): GapAnalysis {
   };
 }
 
+// ── Company name normalization ─────────────────────────────────────────────
+// Groups company names case-insensitively, returning the most common casing
+// for display. Does not mutate connection data.
+
+export interface CompanyCount {
+  displayName: string; // most common casing
+  count: number;
+}
+
+export function groupCompaniesCaseInsensitive(
+  connections: { company: string }[]
+): CompanyCount[] {
+  // key = lowercase company name
+  // value = Map<original casing, count>
+  const groups = new Map<string, Map<string, number>>();
+
+  for (const c of connections) {
+    if (!c.company) continue;
+    const key = c.company.toLowerCase();
+    let casings = groups.get(key);
+    if (!casings) {
+      casings = new Map();
+      groups.set(key, casings);
+    }
+    casings.set(c.company, (casings.get(c.company) || 0) + 1);
+  }
+
+  const result: CompanyCount[] = [];
+  groups.forEach((casings) => {
+    let bestCasing = "";
+    let bestCount = 0;
+    let totalCount = 0;
+    casings.forEach((count, casing) => {
+      totalCount += count;
+      if (count > bestCount) {
+        bestCount = count;
+        bestCasing = casing;
+      }
+    });
+    result.push({ displayName: bestCasing, count: totalCount });
+  });
+
+  return result.sort((a, b) => b.count - a.count);
+}
+
 // ── Company search ────────────────────────────────────────────────────────
 
 export interface CompanySearchResult {

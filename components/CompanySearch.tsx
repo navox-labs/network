@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { Search, ExternalLink, ArrowRight, Building2 } from "lucide-react";
-import { searchByCompany, type Connection } from "@/lib/tieStrength";
+import { searchByCompany, groupCompaniesCaseInsensitive, type Connection } from "@/lib/tieStrength";
 import { useIsMobile } from "@/hooks/useIsMobile";
 
 interface Props {
@@ -41,15 +41,11 @@ export default function CompanySearch({ connections, onHighlight, onSelectNode, 
     onHighlight(ids);
   };
 
-  // Top companies from network
+  // Top companies from network (case-insensitive grouping)
   const topCompanies = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const c of connections) {
-      if (c.company) counts[c.company] = (counts[c.company] || 0) + 1;
-    }
-    return Object.entries(counts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 12);
+    return groupCompaniesCaseInsensitive(connections)
+      .slice(0, 12)
+      .map(({ displayName, count }) => [displayName, count] as [string, number]);
   }, [connections]);
 
   return (

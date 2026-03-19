@@ -13,6 +13,7 @@ import {
   parseLinkedInCSV,
   analyzeGaps,
   buildGraphData,
+  groupCompaniesCaseInsensitive,
   type IndustryCluster,
   type RawCSVRow,
   type Connection,
@@ -664,5 +665,103 @@ describe("classifyRole", () => {
   it("returns Other for empty or unrecognized", () => {
     expect(classifyRole("")).toBe("Other");
     expect(classifyRole("Chief Happiness Officer")).toBe("Other");
+  });
+});
+
+// ── Company name grouping (case-insensitive) ──────────────────────────────
+
+describe("groupCompaniesCaseInsensitive", () => {
+  it("merges companies with different casing into one entry", () => {
+    const connections = [
+      { company: "Self-Employed" },
+      { company: "Self-employed" },
+      { company: "self-employed" },
+    ];
+    const result = groupCompaniesCaseInsensitive(connections);
+    expect(result).toHaveLength(1);
+    expect(result[0].count).toBe(3);
+  });
+
+  it("uses the most common casing for display", () => {
+    const connections = [
+      { company: "Self-Employed" },
+      { company: "Self-Employed" },
+      { company: "Self-Employed" },
+      { company: "self-employed" },
+    ];
+    const result = groupCompaniesCaseInsensitive(connections);
+    expect(result[0].displayName).toBe("Self-Employed");
+  });
+
+  it("uses the most common casing when minority casing is first", () => {
+    const connections = [
+      { company: "self-employed" },
+      { company: "Self-Employed" },
+      { company: "Self-Employed" },
+      { company: "Self-Employed" },
+    ];
+    const result = groupCompaniesCaseInsensitive(connections);
+    expect(result[0].displayName).toBe("Self-Employed");
+    expect(result[0].count).toBe(4);
+  });
+
+  it("sorts by count descending", () => {
+    const connections = [
+      { company: "Google" },
+      { company: "Google" },
+      { company: "Google" },
+      { company: "Meta" },
+      { company: "Meta" },
+      { company: "Apple" },
+    ];
+    const result = groupCompaniesCaseInsensitive(connections);
+    expect(result[0].displayName).toBe("Google");
+    expect(result[0].count).toBe(3);
+    expect(result[1].displayName).toBe("Meta");
+    expect(result[1].count).toBe(2);
+    expect(result[2].displayName).toBe("Apple");
+    expect(result[2].count).toBe(1);
+  });
+
+  it("skips empty company names", () => {
+    const connections = [
+      { company: "" },
+      { company: "Google" },
+      { company: "" },
+    ];
+    const result = groupCompaniesCaseInsensitive(connections);
+    expect(result).toHaveLength(1);
+    expect(result[0].displayName).toBe("Google");
+  });
+
+  it("handles empty input", () => {
+    expect(groupCompaniesCaseInsensitive([])).toHaveLength(0);
+  });
+
+  it("handles all identical casings", () => {
+    const connections = [
+      { company: "Google" },
+      { company: "Google" },
+    ];
+    const result = groupCompaniesCaseInsensitive(connections);
+    expect(result).toHaveLength(1);
+    expect(result[0].displayName).toBe("Google");
+    expect(result[0].count).toBe(2);
+  });
+
+  it("handles multiple companies with mixed casing", () => {
+    const connections = [
+      { company: "Google" },
+      { company: "google" },
+      { company: "Meta" },
+      { company: "META" },
+      { company: "META" },
+    ];
+    const result = groupCompaniesCaseInsensitive(connections);
+    expect(result).toHaveLength(2);
+    // META appears twice vs Meta once, so META wins display
+    const metaEntry = result.find(r => r.displayName.toLowerCase() === "meta");
+    expect(metaEntry?.displayName).toBe("META");
+    expect(metaEntry?.count).toBe(3);
   });
 });
