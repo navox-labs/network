@@ -4,12 +4,13 @@ import { useRef, useState, useCallback } from "react";
 import { Upload, Network, FileText, Shield } from "lucide-react";
 
 interface Props {
-  onFile: (file: File) => void;
+  onFiles: (files: File[]) => void;
   isLoading: boolean;
   error: string | null;
+  parsingStage?: string | null;
 }
 
-export default function UploadScreen({ onFile, isLoading, error }: Props) {
+export default function UploadScreen({ onFiles, isLoading, error, parsingStage }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -17,15 +18,15 @@ export default function UploadScreen({ onFile, isLoading, error }: Props) {
     (e: React.DragEvent) => {
       e.preventDefault();
       setIsDragging(false);
-      const file = e.dataTransfer.files[0];
-      if (file?.name.endsWith(".csv")) onFile(file);
+      const files = Array.from(e.dataTransfer.files);
+      if (files.length > 0) onFiles(files);
     },
-    [onFile]
+    [onFiles]
   );
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) onFile(file);
+    const files = e.target.files;
+    if (files && files.length > 0) onFiles(Array.from(files));
   };
 
   return (
@@ -75,7 +76,7 @@ export default function UploadScreen({ onFile, isLoading, error }: Props) {
           fontSize: 15,
           lineHeight: 1.6,
         }}>
-          Upload your LinkedIn connections CSV to visualize your network graph,
+          Upload your LinkedIn data export to visualize your network graph,
           identify gaps in your bridging capital, and find your side door
           into target companies.
         </p>
@@ -99,7 +100,8 @@ export default function UploadScreen({ onFile, isLoading, error }: Props) {
         <input
           ref={inputRef}
           type="file"
-          accept=".csv"
+          accept=".csv,.zip"
+          multiple
           style={{ display: "none" }}
           onChange={handleChange}
         />
@@ -116,7 +118,7 @@ export default function UploadScreen({ onFile, isLoading, error }: Props) {
               <Network size={20} color="var(--accent)" />
             </div>
             <p style={{ color: "var(--text-secondary)", fontFamily: "var(--font-mono)", fontSize: 13 }}>
-              Parsing connections…
+              {parsingStage || "Parsing connections…"}
             </p>
           </div>
         ) : (
@@ -131,7 +133,7 @@ export default function UploadScreen({ onFile, isLoading, error }: Props) {
               <Upload size={22} color="var(--text-secondary)" />
             </div>
             <p style={{ color: "var(--text-primary)", fontSize: 15, fontWeight: 500, marginBottom: 6 }}>
-              Drop your Connections.csv here
+              Drop your LinkedIn zip, folder, or files here
             </p>
             <p style={{ color: "var(--text-muted)", fontSize: 13 }}>
               or click to browse
@@ -177,11 +179,11 @@ export default function UploadScreen({ onFile, isLoading, error }: Props) {
           HOW TO EXPORT FROM LINKEDIN
         </div>
         {[
-          "Go to LinkedIn → Settings → Data Privacy",
+          "Go to LinkedIn Settings → Data Privacy",
           'Click "Get a copy of your data"',
-          'Select "Connections" only',
-          "Request archive → download when ready (up to 24h)",
-          'Upload Connections.csv here',
+          "Select Basic export (ready in 10 minutes)",
+          "Download the zip when LinkedIn emails you",
+          "Drop the zip, folder, or any files here — we handle the rest",
         ].map((step, i) => (
           <div key={i} style={{
             display: "flex", gap: 12, marginBottom: 8,
