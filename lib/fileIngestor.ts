@@ -112,11 +112,17 @@ export async function extractFromZip(zipFile: File): Promise<Map<string, string>
     throw new Error("Zip file exceeds maximum allowed size (50 MB decompressed).");
   }
 
-  // Decompress with actual size verification
+  // Decompress with per-file AND total actual size verification
   let actualTotal = 0;
   for (const { canonicalName, zipEntry } of entries) {
     const content = await zipEntry.async("string");
-    actualTotal += content.length * 2; // JS strings are UTF-16 (2 bytes per char)
+    const contentBytes = content.length * 2; // JS strings are UTF-16 (2 bytes per char)
+    if (contentBytes > MAX_FILE_BYTES) {
+      throw new Error(
+        `File "${canonicalName}" exceeds 10 MB limit (${Math.round(contentBytes / 1024 / 1024)} MB).`
+      );
+    }
+    actualTotal += contentBytes;
     if (actualTotal > MAX_TOTAL_BYTES) {
       throw new Error("Zip file exceeds maximum allowed size (50 MB decompressed).");
     }
@@ -132,11 +138,19 @@ export async function extractFromZip(zipFile: File): Promise<Map<string, string>
  */
 export async function extractFromFolder(files: File[]): Promise<Map<string, string>> {
   const result = new Map<string, string>();
+  let totalBytes = 0;
 
   for (const file of files) {
     const path = file.webkitRelativePath || file.name;
     const canonical = matchRecognizedFile(path);
     if (canonical) {
+      if (file.size > MAX_FILE_BYTES) {
+        throw new Error(`File "${file.name}" exceeds 10 MB limit (${Math.round(file.size / 1024 / 1024)} MB).`);
+      }
+      totalBytes += file.size;
+      if (totalBytes > MAX_TOTAL_BYTES) {
+        throw new Error("Total file size exceeds 50 MB limit.");
+      }
       const content = await file.text();
       result.set(canonical, content);
     }
@@ -151,10 +165,18 @@ export async function extractFromFolder(files: File[]): Promise<Map<string, stri
  */
 export async function extractFromFiles(files: File[]): Promise<Map<string, string>> {
   const result = new Map<string, string>();
+  let totalBytes = 0;
 
   for (const file of files) {
     const canonical = matchRecognizedFile(file.name);
     if (canonical) {
+      if (file.size > MAX_FILE_BYTES) {
+        throw new Error(`File "${file.name}" exceeds 10 MB limit (${Math.round(file.size / 1024 / 1024)} MB).`);
+      }
+      totalBytes += file.size;
+      if (totalBytes > MAX_TOTAL_BYTES) {
+        throw new Error("Total file size exceeds 50 MB limit.");
+      }
       const content = await file.text();
       result.set(canonical, content);
     }
