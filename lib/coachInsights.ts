@@ -1,4 +1,4 @@
-import type { Connection, GapAnalysis, GapItem } from "./tieStrength";
+import type { Connection, GapAnalysis, NetworkInsight } from "./tieStrength";
 import type { ActivePanel } from "@/app/page";
 
 // ── Bar Insight ────────────────────────────────────────────────────────────
@@ -19,41 +19,41 @@ export function getBarInsight(
 ): BarInsight {
   if (!gapAnalysis) return { text: "Upload your connections to get started.", actionLabel: null, action: null };
 
-  const bridgeCount = gapAnalysis.topActivationTargets.filter(t => t.isBridge).length;
-  const topGap = gapAnalysis.gaps.find(g => g.severity === "critical" || g.severity === "moderate");
+  const bridgeCount = gapAnalysis.topActivationTargets?.filter(t => t.isBridge).length ?? 0;
+  const concInsight = gapAnalysis.insights?.find(i => i.type === "cluster_concentration");
 
   switch (tab) {
     case "graph":
       if (selectedNode) {
         if (selectedNode.isBridge && selectedNode.activationPriority > 0.5) {
           return {
-            text: `${selectedNode.firstName || selectedNode.name.split(" ")[0]} at ${selectedNode.company} is a high-value ${selectedNode.tieCategory} tie. Ready to reach out?`,
+            text: `${selectedNode.firstName || selectedNode.name.split(" ")[0]} at ${selectedNode.company} is a bridge to ${selectedNode.industryCluster}. Ready to reach out?`,
             actionLabel: "Draft Message",
             action: "draft-message",
           };
         }
         return {
-          text: `${selectedNode.firstName || selectedNode.name.split(" ")[0]} — ${selectedNode.tieCategory} tie, ${selectedNode.roleCategory}${selectedNode.isBridge ? ", bridge node" : ""}. ${selectedNode.tieCategory === "dormant" ? "Consider re-activating." : ""}`,
+          text: `${selectedNode.firstName || selectedNode.name.split(" ")[0]} — ${selectedNode.tieCategory} tie, ${selectedNode.industryCluster}${selectedNode.isBridge ? ", bridge to rare cluster" : ""}. ${selectedNode.tieCategory === "dormant" ? "Consider re-activating." : ""}`,
           actionLabel: selectedNode.tieCategory !== "dormant" ? "Draft Message" : null,
           action: selectedNode.tieCategory !== "dormant" ? "draft-message" : null,
         };
       }
       return {
-        text: `You have ${bridgeCount} bridge connection${bridgeCount !== 1 ? "s" : ""}. Click one to see your activation strategy.`,
+        text: `You have ${bridgeCount} bridge connection${bridgeCount !== 1 ? "s" : ""} to rare industry clusters. Click one to see your activation strategy.`,
         actionLabel: "View Outreach Queue",
         action: "switch-queue",
       };
 
     case "gaps":
-      if (topGap) {
+      if (concInsight) {
         return {
-          text: `Biggest gap: ${topGap.category} (${topGap.currentPct}% vs ${topGap.idealPct}% ideal). This limits your reach.`,
+          text: `${concInsight.description.split(".")[0]}.`,
           actionLabel: "Search Network",
           action: "switch-search",
         };
       }
       return {
-        text: `Network health: ${gapAnalysis.networkHealthScore}/100. Your role distribution is well-balanced.`,
+        text: `Network health: ${gapAnalysis.networkHealthScore}/100. View your industry distribution for details.`,
         actionLabel: null,
         action: null,
       };
@@ -68,8 +68,8 @@ export function getBarInsight(
       }
       if (searchQuery && searchResultCount === 0) {
         return {
-          text: `No connections at "${searchQuery}". Check your gaps to see which roles to build toward.`,
-          actionLabel: "See Gaps",
+          text: `No connections at "${searchQuery}". Check your network insights to identify potential paths.`,
+          actionLabel: "See Insights",
           action: "switch-gaps",
         };
       }
@@ -83,7 +83,7 @@ export function getBarInsight(
       const top = gapAnalysis.topActivationTargets[0];
       if (top) {
         return {
-          text: `Top priority: ${top.firstName || top.name.split(" ")[0]} at ${top.company} (${top.tieCategory} tie, ${top.roleCategory}).`,
+          text: `Top priority: ${top.firstName || top.name.split(" ")[0]} at ${top.company} (${top.tieCategory} tie, ${top.industryCluster}).`,
           actionLabel: "Start Outreach",
           action: null,
         };
@@ -107,15 +107,15 @@ export function getNodeCoachData(conn: Connection): NodeCoachData {
 
   let why: string;
   if (conn.isBridge && conn.tieCategory === "weak") {
-    why = `${name} is a weak tie in a bridge role (${conn.roleCategory}). Per network science, this is your highest-value connection type — they carry non-redundant information from different professional clusters.`;
+    why = `${name} is a weak tie bridging to ${conn.industryCluster} — a rare cluster in your network. Per Granovetter, this is your highest-value connection type: they carry non-redundant information from a different professional sector.`;
   } else if (conn.isBridge) {
-    why = `${name} holds a bridge role (${conn.roleCategory}) with ${conn.tieCategory} tie strength. They can connect you to hiring decisions or different clusters.`;
+    why = `${name} bridges to ${conn.industryCluster}, which has very few connections in your network. This structural position makes them valuable for accessing new opportunities.`;
   } else if (conn.tieCategory === "weak") {
     why = `${name} is a weak tie. Research shows weak ties are more likely to lead to job opportunities than close friends — they inhabit different professional circles.`;
   } else if (conn.tieCategory === "dormant") {
     why = `${name} is a dormant connection. Re-activating dormant ties can be surprisingly productive — you share history but haven't depleted the relationship.`;
   } else {
-    why = `${name} is a ${conn.tieCategory} tie in ${conn.roleCategory}. ${conn.tieCategory === "strong" ? "Strong ties are great for referrals and warm intros." : "Moderate ties respond well to genuine reconnection."}`;
+    why = `${name} is a ${conn.tieCategory} tie in ${conn.industryCluster}. ${conn.tieCategory === "strong" ? "Strong ties are great for referrals and warm intros." : "Moderate ties respond well to genuine reconnection."}`;
   }
 
   let suggestion: string;
@@ -133,35 +133,36 @@ export function getNodeCoachData(conn: Connection): NodeCoachData {
 }
 
 // ── Gap Action Card ────────────────────────────────────────────────────────
+// Now based on network insights instead of role-based gaps
 
 export interface GapActionData {
-  gap: GapItem;
+  insight: NetworkInsight;
   strategies: string[];
   searchQuery: string;
 }
 
 export function getGapActionData(gapAnalysis: GapAnalysis): GapActionData | null {
-  const gap = gapAnalysis.gaps.find(g => g.severity === "critical" || g.severity === "moderate");
-  if (!gap) return null;
+  // Find the most actionable insight
+  const concInsight = (gapAnalysis.insights || []).find(i => i.type === "cluster_concentration");
+  if (!concInsight) return null;
 
-  const strategies = [gap.suggestion];
-  if (gap.category === "Recruiters") {
-    strategies.push("Search LinkedIn for 'Recruiter' or 'Talent Acquisition' at target companies");
-    strategies.push("Attend hiring events or job fairs where recruiters are present");
-  } else if (gap.category === "Leadership") {
-    strategies.push("Engage with content from VPs/Directors on LinkedIn");
-    strategies.push("Use alumni networks to find leaders at target companies");
-  } else if (gap.category === "Founders/CEOs") {
-    strategies.push("Attend startup events, demo days, or pitch competitions");
-    strategies.push("Engage with founder content on LinkedIn or Twitter");
-  } else {
-    strategies.push(`Search LinkedIn for '${gap.category}' at companies in your target list`);
-  }
+  // Only show action card if concentration is high
+  const pctMatch = String(concInsight.value).match(/(\d+)/);
+  const pct = pctMatch ? parseInt(pctMatch[1], 10) : 0;
+  if (pct <= 40) return null;
+
+  const dominantCluster = concInsight.description.match(/in (\w[\w/]*)/)?.[1] || "your top industry";
+
+  const strategies = [
+    `Your network is ${pct}% concentrated in ${dominantCluster}. Diversifying industries increases bridging capital.`,
+    "Attend cross-industry events or engage with professionals in adjacent fields on LinkedIn.",
+    "Prioritize connecting with people outside your top 2 industry clusters.",
+  ];
 
   return {
-    gap,
+    insight: concInsight,
     strategies: strategies.slice(0, 3),
-    searchQuery: gap.category,
+    searchQuery: dominantCluster,
   };
 }
 
@@ -177,9 +178,9 @@ export function getWeeklyPlan(gapAnalysis: GapAnalysis): WeeklyTarget[] {
     const name = conn.firstName || conn.name.split(" ")[0];
     let reason: string;
     if (conn.isBridge && conn.tieCategory === "weak") {
-      reason = `Weak tie + bridge role = highest value. ${name} can open doors you can't see.`;
+      reason = `Weak tie + bridge to ${conn.industryCluster} = highest value. ${name} can open doors you can't see.`;
     } else if (conn.isBridge) {
-      reason = `Bridge role (${conn.roleCategory}). Connects you to different clusters.`;
+      reason = `Bridge to ${conn.industryCluster}. Connects you to a rare cluster in your network.`;
     } else {
       reason = `High activation priority. ${conn.tieCategory} tie at ${conn.company}.`;
     }
@@ -194,10 +195,12 @@ export function getDraftPrompt(conn: Connection): string {
 
 About them:
 - Position: ${conn.position} at ${conn.company}
+- Industry cluster: ${conn.industryCluster}
 - Tie strength: ${conn.tieCategory} (${Math.round(conn.tieStrength * 100)}%)
 - Connected ${conn.daysSinceConnected} days ago
-- Bridge connection: ${conn.isBridge ? "yes" : "no"}
-- Role category: ${conn.roleCategory}
+- Bridge connection: ${conn.isBridge ? "yes — rare cluster in my network" : "no"}
+- Network position: ${conn.networkPosition}
+- Confidence: ${conn.confidenceLevel} (tie strength is ${conn.confidenceLevel === "low" ? "estimated from old connection date" : "based on recent connection"})
 
 Tone calibration:
 ${conn.tieCategory === "weak" ? "- This is a weak tie. Reference shared context, be specific about why you're reaching out, keep it brief and respectful of their time." : ""}

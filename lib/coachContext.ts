@@ -26,7 +26,10 @@ export function buildContextSection(ctx: CoachContext): string {
         lines.push(`- Company: ${n.company}`);
         lines.push(`- Tie strength: ${Math.round(n.tieStrength * 100)}% (${n.tieCategory})`);
         lines.push(`- Role category: ${n.roleCategory}`);
-        lines.push(`- Bridge connection: ${n.isBridge ? "yes" : "no"}`);
+        lines.push(`- Industry cluster: ${n.industryCluster}`);
+        lines.push(`- Network position: ${n.networkPosition}`);
+        lines.push(`- Bridge connection: ${n.isBridge ? "yes — rare cluster" : "no"}`);
+        lines.push(`- Confidence level: ${n.confidenceLevel}`);
         lines.push(`- Activation priority: ${Math.round(n.activationPriority * 100)}%`);
         lines.push(`- Connected ${n.daysSinceConnected} days ago`);
         lines.push(``);
@@ -41,17 +44,15 @@ export function buildContextSection(ctx: CoachContext): string {
       lines.push(`The user is viewing the Gap Analysis tab.`);
       if (ctx.gapAnalysis) {
         lines.push(`- Network health score: ${ctx.gapAnalysis.networkHealthScore}/100`);
-        const topGaps = ctx.gapAnalysis.gaps
-          .filter(g => g.severity === "critical" || g.severity === "moderate")
-          .slice(0, 3);
-        if (topGaps.length > 0) {
-          lines.push(`- Top gaps:`);
-          for (const g of topGaps) {
-            lines.push(`  - ${g.category}: ${g.currentPct}% (ideal: ${g.idealPct}%) — ${g.severity}`);
+        const keyInsights = (ctx.gapAnalysis.insights || []).slice(0, 3);
+        if (keyInsights.length > 0) {
+          lines.push(`- Key insights:`);
+          for (const insight of keyInsights) {
+            lines.push(`  - ${insight.label}: ${insight.value} — ${insight.description}`);
           }
         }
         lines.push(``);
-        lines.push(`Prioritize gap-related advice. Help them understand which gaps matter most and how to close them.`);
+        lines.push(`Prioritize insight-related advice. Help them understand their network structure and how to diversify.`);
       }
       break;
 
@@ -75,7 +76,7 @@ export function buildContextSection(ctx: CoachContext): string {
         const top5 = ctx.gapAnalysis.topActivationTargets.slice(0, 5);
         lines.push(`Top targets:`);
         for (const t of top5) {
-          lines.push(`- ${t.name} (${t.position} at ${t.company}, ${t.tieCategory} tie, priority ${Math.round(t.activationPriority * 100)}%)`);
+          lines.push(`- ${t.name} (${t.position} at ${t.company}, ${t.tieCategory} tie, ${t.networkPosition}, priority ${Math.round(t.activationPriority * 100)}%)`);
         }
         lines.push(``);
         lines.push(`Help them craft outreach messages and decide who to contact first. Calibrate message tone to tie strength.`);
@@ -108,7 +109,7 @@ export function shouldNudge(
 
   // First time viewing gaps
   if (ctx.activeTab === "gaps" && !firedNudges.has("gaps-first")) {
-    return { hint: "Want me to break down your gaps?", nudgeKey: "gaps-first" };
+    return { hint: "Want me to break down your network insights?", nudgeKey: "gaps-first" };
   }
 
   // Search with 0 results
@@ -149,11 +150,11 @@ export function getSuggestedQuestions(ctx: CoachContext): string[] {
 
     case "gaps":
       if (ctx.gapAnalysis) {
-        const topGap = ctx.gapAnalysis.gaps.find(g => g.severity === "critical" || g.severity === "moderate");
-        if (topGap) {
+        const concInsight = (ctx.gapAnalysis.insights || []).find(i => i.type === "cluster_concentration");
+        if (concInsight) {
           return [
-            "Which gap should I close first?",
-            `How do I find more ${topGap.category}?`,
+            "How can I diversify my network?",
+            "Which industries should I build connections in?",
           ];
         }
       }

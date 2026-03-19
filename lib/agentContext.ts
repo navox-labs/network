@@ -7,12 +7,11 @@ export interface AgentContext {
     bridgingCapitalScore: number;
     interpretation: string;
   };
-  criticalGaps: {
-    category: string;
-    currentPct: number;
-    idealPct: number;
-    severity: string;
-    suggestion: string;
+  networkInsights: {
+    type: string;
+    label: string;
+    value: string | number;
+    description: string;
   }[];
   topBridges: {
     name: string;
@@ -20,8 +19,11 @@ export interface AgentContext {
     position: string;
     tieCategory: string;
     roleCategory: string;
+    industryCluster: string;
+    networkPosition: string;
     activationPriority: number;
   }[];
+  clusterDistribution: { cluster: string; count: number; percentage: number }[];
   roleDistribution: Record<string, number>;
 }
 
@@ -36,22 +38,26 @@ export function buildAgentContext(
       bridgingCapitalScore: gapAnalysis.bridgingCapitalScore,
       interpretation: gapAnalysis.interpretation,
     },
-    criticalGaps: gapAnalysis.gaps
-      .filter((g) => g.severity === "critical" || g.severity === "moderate")
-      .map((g) => ({
-        category: g.category,
-        currentPct: g.currentPct,
-        idealPct: g.idealPct,
-        severity: g.severity,
-        suggestion: g.suggestion,
-      })),
+    networkInsights: (gapAnalysis.insights || []).map((i) => ({
+      type: i.type,
+      label: i.label,
+      value: i.value,
+      description: i.description,
+    })),
     topBridges: gapAnalysis.topActivationTargets.slice(0, 10).map((c) => ({
       name: c.name,
       company: c.company,
       position: c.position,
       tieCategory: c.tieCategory,
       roleCategory: c.roleCategory,
+      industryCluster: c.industryCluster,
+      networkPosition: c.networkPosition,
       activationPriority: c.activationPriority,
+    })),
+    clusterDistribution: gapAnalysis.clusterDistribution.map((d) => ({
+      cluster: d.cluster,
+      count: d.count,
+      percentage: d.percentage,
     })),
     roleDistribution: gapAnalysis.rolePercentages,
   };

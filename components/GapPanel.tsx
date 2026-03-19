@@ -1,20 +1,22 @@
 "use client";
 
-import { AlertTriangle, TrendingUp, Users, Zap } from "lucide-react";
-import type { GapAnalysis, Connection, RoleCategory } from "@/lib/tieStrength";
-import { getGapActionData } from "@/lib/coachInsights";
-import { GapCoachCard } from "@/components/CoachCard";
+import { TrendingUp, Users, Zap, Info } from "lucide-react";
+import type { GapAnalysis, Connection, IndustryCluster } from "@/lib/tieStrength";
 
-const ROLE_COLORS: Record<string, string> = {
-  "Engineers/Devs": "#6366f1",
-  "Founders/CEOs":  "#e04590",
-  "Recruiters":     "#16a36b",
-  "AI/ML/Data":     "#8b5cf6",
-  "Leadership":     "#d9960a",
-  "Design/Product": "#ea580c",
-  "Advisors":       "#0891b2",
-  "Other":          "#6b7280",
+const CLUSTER_COLORS: Record<string, string> = {
+  "Tech":             "#6366f1",
+  "Finance":          "#16a36b",
+  "Healthcare":       "#e04590",
+  "Education":        "#d9960a",
+  "Government":       "#6b7280",
+  "Legal":            "#0891b2",
+  "Media/Marketing":  "#ea580c",
+  "Manufacturing":    "#8b5cf6",
+  "Consulting":       "#2563eb",
+  "Nonprofit":        "#059669",
+  "Other":            "#9ca3af",
 };
+
 
 interface Props {
   gapAnalysis: GapAnalysis;
@@ -25,8 +27,8 @@ interface Props {
 export default function GapPanel({ gapAnalysis, connections, onSwitchToSearch }: Props) {
   const {
     totalConnections, avgTieStrength, bridgingCapitalScore,
-    bondingCapitalScore, rolePercentages, gaps,
-    networkHealthScore, interpretation,
+    bondingCapitalScore, clusterDistribution = [], rolePercentages,
+    insights = [], networkHealthScore, interpretation,
   } = gapAnalysis;
 
   const weakCount = connections.filter(c => c.tieCategory === "weak").length;
@@ -41,15 +43,6 @@ export default function GapPanel({ gapAnalysis, connections, onSwitchToSearch }:
       flexDirection: "column",
       gap: 20,
     }}>
-      {/* Coach Action Card */}
-      {(() => {
-        const gapAction = getGapActionData(gapAnalysis);
-        if (gapAction && onSwitchToSearch) {
-          return <GapCoachCard data={gapAction} onSearchRole={onSwitchToSearch} />;
-        }
-        return null;
-      })()}
-
       {/* Header */}
       <div>
         <h2 style={{ fontSize: 20, fontWeight: 600, color: "var(--text-primary)", marginBottom: 4 }}>
@@ -76,7 +69,7 @@ export default function GapPanel({ gapAnalysis, connections, onSwitchToSearch }:
             icon={<TrendingUp size={16} />}
             label="Bridging Capital"
             value={`${Math.round(bridgingCapitalScore * 100)}%`}
-            sub={bridgingCapitalScore > 0.3 ? "✓ Healthy" : "⚠ Low"}
+            sub={bridgingCapitalScore > 0.3 ? "Healthy" : "Low"}
             color={bridgingCapitalScore > 0.3 ? "var(--strong)" : "var(--warning)"}
           />
           <StatCard
@@ -115,7 +108,7 @@ export default function GapPanel({ gapAnalysis, connections, onSwitchToSearch }:
           total={totalConnections} color="var(--text-muted)" note="May need re-activation" />
       </div>
 
-      {/* Role distribution */}
+      {/* Industry cluster distribution */}
       <div style={{
         background: "var(--bg-panel)",
         border: "1px solid var(--border)",
@@ -123,64 +116,47 @@ export default function GapPanel({ gapAnalysis, connections, onSwitchToSearch }:
         padding: "18px 20px",
       }}>
         <div style={{ fontSize: 12, color: "var(--text-muted)", letterSpacing: "0.05em", textTransform: "uppercase", fontFamily: "var(--font-mono)", marginBottom: 14 }}>
-          Role Distribution vs. Ideal
+          Industry Cluster Distribution
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {Object.entries(ROLE_COLORS).map(([role, color]) => {
-            const current = rolePercentages[role as keyof typeof rolePercentages] || 0;
-            const ideal = IDEAL_PCT[role as keyof typeof IDEAL_PCT] || 0;
-            return (
-              <RoleRow key={role} role={role} color={color} current={current} ideal={ideal} />
-            );
-          })}
+          {clusterDistribution.map(({ cluster, count, percentage }) => (
+            <ClusterRow
+              key={cluster}
+              cluster={cluster}
+              color={CLUSTER_COLORS[cluster] || "#6b7280"}
+              count={count}
+              percentage={percentage}
+            />
+          ))}
+        </div>
+        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 12, fontStyle: "italic", lineHeight: 1.4 }}>
+          Industry inferred from company name and position title. LinkedIn does not export an industry field.
         </div>
       </div>
 
-      {/* Gap recommendations */}
-      {gaps.length > 0 && (
+      {/* Role distribution collapsed — secondary to industry clusters */}
+
+      {/* Network insights */}
+      {insights.length > 0 && (
         <div>
           <div style={{
             fontSize: 12, color: "var(--text-muted)", letterSpacing: "0.05em",
             textTransform: "uppercase", fontFamily: "var(--font-mono)", marginBottom: 12,
             display: "flex", alignItems: "center", gap: 6,
           }}>
-            <AlertTriangle size={12} />
-            GAPS TO CLOSE — ranked by deficit
+            <Info size={12} />
+            NETWORK INSIGHTS
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {gaps.map((gap, i) => (
-              <GapCard key={gap.category} gap={gap} rank={i + 1} color={ROLE_COLORS[gap.category] || "#6b7280"} />
+            {insights.map((insight, i) => (
+              <InsightCard key={insight.type} insight={insight} rank={i + 1} />
             ))}
           </div>
-        </div>
-      )}
-
-      {gaps.length === 0 && (
-        <div style={{
-          padding: "20px 24px",
-          background: "rgba(22,163,107,0.06)",
-          border: "1px solid rgba(22,163,107,0.15)",
-          borderRadius: 10,
-          color: "var(--strong)",
-          fontSize: 14,
-        }}>
-          ✓ Your network distribution is well-balanced across role categories.
         </div>
       )}
     </div>
   );
 }
-
-const IDEAL_PCT: Record<string, number> = {
-  "Recruiters": 12,
-  "Leadership": 10,
-  "Founders/CEOs": 8,
-  "AI/ML/Data": 15,
-  "Engineers/Devs": 25,
-  "Design/Product": 10,
-  "Advisors": 8,
-  "Other": 12,
-};
 
 function HealthCard({ score, interpretation }: { score: number; interpretation: string }) {
   const color = score > 60 ? "var(--strong)" : score > 35 ? "var(--moderate)" : "var(--critical)";
@@ -266,32 +242,23 @@ function TieBar({ label, count, total, color, note }: any) {
   );
 }
 
-function RoleRow({ role, color, current, ideal }: any) {
-  const deficit = ideal - current;
+function ClusterRow({ cluster, color, count, percentage }: {
+  cluster: string; color: string; count: number; percentage: number;
+}) {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <div style={{ width: 8, height: 8, borderRadius: "50%", background: color }} />
-          <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>{role}</span>
+          <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>{cluster}</span>
         </div>
-        <div style={{ display: "flex", gap: 12, fontFamily: "var(--font-mono)", fontSize: 11 }}>
-          <span style={{ color: "var(--text-muted)" }}>ideal {ideal}%</span>
-          <span style={{ color: deficit > 4 ? "var(--critical)" : deficit > 0 ? "var(--warning)" : "var(--strong)" }}>
-            {current}%
-          </span>
+        <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-secondary)" }}>
+          {count} ({percentage}%)
         </div>
       </div>
-      <div style={{ height: 4, background: "var(--border)", borderRadius: 2, overflow: "visible", position: "relative" }}>
-        {/* Ideal marker */}
+      <div style={{ height: 4, background: "var(--border)", borderRadius: 2, overflow: "hidden" }}>
         <div style={{
-          position: "absolute", left: `${Math.min(ideal, 99)}%`,
-          top: -1, width: 2, height: 6, background: "var(--text-muted)",
-          borderRadius: 1,
-        }} />
-        {/* Current bar */}
-        <div style={{
-          height: "100%", width: `${Math.min(current, 100)}%`,
+          height: "100%", width: `${Math.min(percentage, 100)}%`,
           background: color + "bb",
           borderRadius: 2, transition: "width 0.5s ease",
         }} />
@@ -300,10 +267,15 @@ function RoleRow({ role, color, current, ideal }: any) {
   );
 }
 
-function GapCard({ gap, rank, color }: any) {
-  const severityColor = gap.severity === "critical" ? "var(--critical)"
-    : gap.severity === "moderate" ? "var(--warning)"
-    : "var(--moderate)";
+
+function InsightCard({ insight, rank }: { insight: any; rank: number }) {
+  const typeColors: Record<string, string> = {
+    cluster_concentration: "#6366f1",
+    bridge_count: "#16a36b",
+    diversity_score: "#d9960a",
+    confidence_note: "#6b7280",
+  };
+  const color = typeColors[insight.type] || "#6b7280";
 
   return (
     <div style={{
@@ -326,20 +298,20 @@ function GapCard({ gap, rank, color }: any) {
       </div>
       <div style={{ flex: 1 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-          <span style={{ fontWeight: 600, fontSize: 14, color: "var(--text-primary)" }}>{gap.category}</span>
+          <span style={{ fontWeight: 600, fontSize: 14, color: "var(--text-primary)" }}>{insight.label}</span>
           <span className="badge" style={{
-            background: severityColor + "15",
-            color: severityColor,
+            background: color + "15",
+            color: color,
             borderRadius: 4,
           }}>
-            {gap.severity} · −{gap.deficit}pp
+            {insight.value}
           </span>
         </div>
-        <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 8, fontFamily: "var(--font-mono)" }}>
-          {gap.currentCount} connections ({gap.currentPct}%) · target: {gap.idealPct}%
-        </div>
-        <p style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.5 }}>
-          {gap.suggestion}
+        <p style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.5, marginBottom: 6 }}>
+          {insight.description}
+        </p>
+        <p style={{ fontSize: 11, color: "var(--text-muted)", fontStyle: "italic", lineHeight: 1.4 }}>
+          {insight.dataSource}
         </p>
       </div>
     </div>

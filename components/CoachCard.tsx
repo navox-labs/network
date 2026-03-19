@@ -161,10 +161,10 @@ export function GapCoachCard({ data, onSearchRole }: GapCardProps) {
       </div>
 
       <div style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 500, marginBottom: 4 }}>
-        You need more {data.gap.category}
+        {data.insight.label}: {data.insight.value}
       </div>
       <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 10 }}>
-        Currently {data.gap.currentPct}% of your network (ideal: {data.gap.idealPct}%) — {data.gap.severity} gap
+        {data.insight.description.split(".")[0]}.
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
@@ -181,7 +181,7 @@ export function GapCoachCard({ data, onSearchRole }: GapCardProps) {
         className="btn btn-ghost"
         style={{ fontSize: 12, width: "100%", justifyContent: "center", gap: 6 }}
       >
-        Search for {data.gap.category} in your network <ArrowRight size={12} />
+        Search "{data.searchQuery}" in your network <ArrowRight size={12} />
       </button>
     </div>
   );

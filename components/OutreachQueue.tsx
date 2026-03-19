@@ -62,7 +62,7 @@ export default function OutreachQueue({ connections, gapAnalysis }: Props) {
         </h2>
         <p style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.5, maxWidth: 600 }}>
           Your highest-priority activation targets, ranked by the Network Archaeology protocol from the paper.
-          Weak ties in bridge roles rank highest — they provide non-redundant paths to new opportunities.
+          Weak ties to rare industry clusters rank highest — they provide non-redundant paths to new opportunities.
         </p>
       </div>
 
@@ -153,9 +153,12 @@ export default function OutreachQueue({ connections, gapAnalysis }: Props) {
                     </span>
                     {conn.isBridge && (
                       <span className="badge" style={{ background: "rgba(22,163,107,0.1)", color: "var(--strong)" }}>
-                        bridge node
+                        bridge — {conn.industryCluster}
                       </span>
                     )}
+                    <span className="badge" style={{ background: "rgba(107,114,128,0.08)", color: "var(--text-muted)" }}>
+                      {conn.networkPosition}
+                    </span>
                   </div>
                 </div>
 

@@ -272,9 +272,20 @@ export default function GraphView({ graphData, connections, highlightedIds, sele
             <span className="badge" style={{ background: "rgba(108,75,244,0.08)", color: "var(--accent)" }}>
               {selectedNode.roleCategory}
             </span>
+            <span className="badge" style={{ background: "rgba(99,102,241,0.08)", color: "#6366f1" }}>
+              {selectedNode.industryCluster}
+            </span>
             {selectedNode.isBridge && (
               <span className="badge" style={{ background: "rgba(22,163,107,0.1)", color: "var(--strong)" }}>
-                ⬡ bridge node
+                bridge — rare cluster
+              </span>
+            )}
+            <span className="badge" style={{ background: "rgba(107,114,128,0.08)", color: "var(--text-muted)" }}>
+              {selectedNode.networkPosition}
+            </span>
+            {selectedNode.confidenceLevel === "low" && (
+              <span className="badge" style={{ background: "rgba(217,150,10,0.08)", color: "var(--warning)" }}>
+                low confidence
               </span>
             )}
           </div>
