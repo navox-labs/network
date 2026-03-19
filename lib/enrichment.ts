@@ -18,6 +18,7 @@ import type { Connection } from "./tieStrength";
 
 export interface MessageRecord {
   senderProfileUrl: string;
+  conversationId: string;
   date: string; // ISO or LinkedIn date format
   direction: "sent" | "received" | "unknown";
 }
@@ -89,6 +90,10 @@ export function normalizeLinkedInUrl(url: string): string {
 export interface RawMessageRow {
   "SENDER PROFILE URL"?: string;
   "Sender Profile URL"?: string;
+  "CONVERSATION ID"?: string;
+  "Conversation ID"?: string;
+  "CONVERSATION TITLE"?: string;
+  "Conversation Title"?: string;
   DATE?: string;
   Date?: string;
   FROM?: string;
@@ -108,6 +113,7 @@ export function parseMessages(rows: RawMessageRow[], userProfileUrl?: string): M
     })
     .map((row) => {
       const senderUrl = (row["SENDER PROFILE URL"] || row["Sender Profile URL"] || "").trim();
+      const conversationId = (row["CONVERSATION ID"] || row["Conversation ID"] || "").trim();
       const date = (row["DATE"] || row["Date"] || "").trim();
       const folder = (row["FOLDER"] || row["Folder"] || "").trim().toLowerCase();
 
@@ -126,6 +132,7 @@ export function parseMessages(rows: RawMessageRow[], userProfileUrl?: string): M
 
       return {
         senderProfileUrl: normalizeLinkedInUrl(senderUrl),
+        conversationId,
         date,
         direction,
       };
@@ -209,14 +216,51 @@ interface MessageAggregation {
 }
 
 /**
+ * Parse a date string to a Date object for comparison.
+ * Handles ISO dates, LinkedIn formats ("Jan 15, 2024", "1/15/2024"), etc.
+ * Returns null if unparseable.
+ */
+function parseDateSafe(dateStr: string): Date | null {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (!isNaN(d.getTime())) return d;
+  return null;
+}
+
+/**
+ * Compare two date strings chronologically. Returns true if a > b.
+ * Falls back to string comparison only if both fail to parse.
+ */
+function isMoreRecent(a: string, b: string): boolean {
+  const da = parseDateSafe(a);
+  const db = parseDateSafe(b);
+  if (da && db) return da.getTime() > db.getTime();
+  // Fallback: if only one parses, prefer the parseable one (it's more reliable)
+  if (da && !db) return true;
+  if (!da && db) return false;
+  return a > b; // last resort string compare
+}
+
+/**
  * Match messages to connections by LinkedIn profile URL.
- * Returns a Map keyed by normalized connection URL.
+ * Uses conversation grouping to correctly attribute sent messages.
+ *
+ * Problem: messages sent BY the user have the user's own URL as sender,
+ * not the connection's URL. Without conversation grouping, sent messages
+ * can't be matched to the recipient connection.
+ *
+ * Solution: group messages by conversation ID. For each conversation,
+ * identify the connection URL (the non-user sender). Attribute all
+ * messages in that conversation to that connection, with correct
+ * sent/received direction.
+ *
+ * Fallback: if no conversation IDs exist, use direct sender URL matching
+ * (received messages only — sent messages are unattributable).
  */
 export function matchMessagesToConnections(
   messages: MessageRecord[],
   connections: Connection[]
 ): Map<string, MessageAggregation> {
-  // Build index: normalized URL → aggregation
   const urlIndex = new Map<string, MessageAggregation>();
 
   // Build set of valid connection URLs for fast lookup
@@ -227,27 +271,83 @@ export function matchMessagesToConnections(
     }
   }
 
-  for (const msg of messages) {
-    if (!msg.senderProfileUrl) continue;
-    if (!connectionUrls.has(msg.senderProfileUrl)) continue;
+  // Check if conversation IDs are available
+  const hasConversationIds = messages.some((m) => m.conversationId.length > 0);
 
-    const existing = urlIndex.get(msg.senderProfileUrl);
-    if (existing) {
-      existing.totalCount++;
-      if (msg.direction === "sent") existing.sentCount++;
-      if (msg.direction === "received") existing.receivedCount++;
-      if (msg.date && (!existing.lastDate || msg.date > existing.lastDate)) {
-        existing.lastDate = msg.date;
+  if (hasConversationIds) {
+    // Group messages by conversation ID
+    const conversations = new Map<string, MessageRecord[]>();
+    for (const msg of messages) {
+      if (!msg.conversationId) continue;
+      const existing = conversations.get(msg.conversationId);
+      if (existing) {
+        existing.push(msg);
+      } else {
+        conversations.set(msg.conversationId, [msg]);
       }
-      existing.bidirectional = existing.sentCount > 0 && existing.receivedCount > 0;
-    } else {
-      urlIndex.set(msg.senderProfileUrl, {
-        totalCount: 1,
-        sentCount: msg.direction === "sent" ? 1 : 0,
-        receivedCount: msg.direction === "received" ? 1 : 0,
-        lastDate: msg.date || null,
-        bidirectional: false,
+    }
+
+    // For each conversation, find the connection URL (non-user sender)
+    conversations.forEach((msgs) => {
+      // Collect all unique sender URLs in this conversation
+      const senderUrls = new Set(msgs.map((m) => m.senderProfileUrl).filter(Boolean));
+
+      // Find which sender URL belongs to a connection
+      let connectionUrl: string | null = null;
+      senderUrls.forEach((url) => {
+        if (connectionUrls.has(url)) {
+          connectionUrl = url;
+        }
       });
+
+      if (!connectionUrl) return; // no connection found in this conversation
+
+      // Attribute messages: if sender = connection URL, it's received; otherwise sent
+      for (const msg of msgs) {
+        const isReceived = msg.senderProfileUrl === connectionUrl;
+
+        const existing = urlIndex.get(connectionUrl);
+        if (existing) {
+          existing.totalCount++;
+          if (isReceived) existing.receivedCount++;
+          else existing.sentCount++;
+          if (msg.date && (!existing.lastDate || isMoreRecent(msg.date, existing.lastDate))) {
+            existing.lastDate = msg.date;
+          }
+          existing.bidirectional = existing.sentCount > 0 && existing.receivedCount > 0;
+        } else {
+          urlIndex.set(connectionUrl, {
+            totalCount: 1,
+            sentCount: isReceived ? 0 : 1,
+            receivedCount: isReceived ? 1 : 0,
+            lastDate: msg.date || null,
+            bidirectional: false,
+          });
+        }
+      }
+    });
+  } else {
+    // Fallback: no conversation IDs — direct sender URL matching (received only)
+    for (const msg of messages) {
+      if (!msg.senderProfileUrl) continue;
+      if (!connectionUrls.has(msg.senderProfileUrl)) continue;
+
+      const existing = urlIndex.get(msg.senderProfileUrl);
+      if (existing) {
+        existing.totalCount++;
+        existing.receivedCount++;
+        if (msg.date && (!existing.lastDate || isMoreRecent(msg.date, existing.lastDate))) {
+          existing.lastDate = msg.date;
+        }
+      } else {
+        urlIndex.set(msg.senderProfileUrl, {
+          totalCount: 1,
+          sentCount: 0,
+          receivedCount: 1,
+          lastDate: msg.date || null,
+          bidirectional: false,
+        });
+      }
     }
   }
 
@@ -343,7 +443,8 @@ export function computeConnectionEnrichments(
 export function buildEnrichmentSummary(
   filesLoaded: string[],
   enrichmentMap: Map<string, ConnectionEnrichment>,
-  invitations: InvitationRecord[]
+  invitations: InvitationRecord[],
+  totalMessageCount: number
 ): EnrichmentSummary {
   let totalMatched = 0;
   let endorsementCount = 0;
@@ -366,7 +467,7 @@ export function buildEnrichmentSummary(
     filesLoaded,
     messageStats: {
       totalMatched,
-      totalUnmatched: 0, // will be set by caller who knows total message count
+      totalUnmatched: Math.max(0, totalMessageCount - totalMatched),
     },
     endorsementCount,
     recommendationCount,

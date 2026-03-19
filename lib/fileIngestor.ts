@@ -25,8 +25,10 @@ const RECOGNIZED_FILES: string[] = [
   "invitations.csv",
 ];
 
-/** Max decompressed zip size: 50 MB (zip bomb protection) */
-const MAX_DECOMPRESSED_BYTES = 50 * 1024 * 1024;
+/** Max decompressed size per file: 10 MB */
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
+/** Max total decompressed size across all files: 50 MB */
+const MAX_TOTAL_BYTES = 50 * 1024 * 1024;
 
 /**
  * Check if a filename (possibly nested in folders) matches a recognized
@@ -69,22 +71,40 @@ export async function extractFromZip(zipFile: File): Promise<Map<string, string>
   const arrayBuffer = await zipFile.arrayBuffer();
   const zip = await JSZip.loadAsync(arrayBuffer);
 
-  // Check total decompressed size (zip bomb protection)
-  let totalSize = 0;
+  // Collect recognized entries and check reported sizes before decompressing
   const entries: { canonicalName: string; zipEntry: JSZip.JSZipObject }[] = [];
+  let estimatedTotal = 0;
 
   zip.forEach((relativePath, zipEntry) => {
     if (zipEntry.dir) return;
     const canonical = matchRecognizedFile(relativePath);
     if (canonical) {
-      entries.push({ canonicalName: canonical, zipEntry });
+      // Guard: reject if reported uncompressed size exceeds per-file limit.
+      // JSZip exposes _data.uncompressedSize for zip entries.
+      const reportedSize = (zipEntry as unknown as Record<string, unknown>)._data
+        ? ((zipEntry as unknown as Record<string, { uncompressedSize?: number }>)._data?.uncompressedSize ?? 0)
+        : 0;
+      if (reportedSize > MAX_FILE_BYTES) {
+        throw new Error(`File "${relativePath}" exceeds 10 MB limit (${Math.round(reportedSize / 1024 / 1024)} MB).`);
+      }
+      estimatedTotal += reportedSize;
+      // Skip duplicates: first occurrence wins (H3 fix)
+      if (!entries.some((e) => e.canonicalName === canonical)) {
+        entries.push({ canonicalName: canonical, zipEntry });
+      }
     }
   });
 
+  if (estimatedTotal > MAX_TOTAL_BYTES) {
+    throw new Error("Zip file exceeds maximum allowed size (50 MB decompressed).");
+  }
+
+  // Decompress with actual size verification
+  let actualTotal = 0;
   for (const { canonicalName, zipEntry } of entries) {
     const content = await zipEntry.async("string");
-    totalSize += content.length;
-    if (totalSize > MAX_DECOMPRESSED_BYTES) {
+    actualTotal += content.length * 2; // JS strings are UTF-16 (2 bytes per char)
+    if (actualTotal > MAX_TOTAL_BYTES) {
       throw new Error("Zip file exceeds maximum allowed size (50 MB decompressed).");
     }
     result.set(canonicalName, content);
@@ -197,10 +217,12 @@ export function summarizeFiles(fileMap: Map<string, string>): FilePresenceSummar
     }
   }
 
+  // positions.csv is recognized but has no parser yet — exclude from enrichment count
+  const PARSEABLE_ENRICHMENT = ["messages.csv", "endorsements_received_info.csv", "recommendations_received.csv", "invitations.csv"];
   return {
     loaded,
     missing,
     hasConnections: fileMap.has("connections.csv"),
-    enrichmentFileCount: loaded.filter((f) => f !== "connections.csv").length,
+    enrichmentFileCount: loaded.filter((f) => PARSEABLE_ENRICHMENT.includes(f)).length,
   };
 }

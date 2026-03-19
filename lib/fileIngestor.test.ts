@@ -175,6 +175,20 @@ describe("extractFromZip", () => {
     expect(result.has("messages.csv")).toBe(true);
   });
 
+  it("keeps first occurrence when duplicate canonical names exist (H3)", async () => {
+    const JSZip = (await import("jszip")).default;
+    const zip = new JSZip();
+    zip.file("folder1/Connections.csv", "first version");
+    zip.file("folder2/connections.csv", "second version");
+
+    const blob = await zip.generateAsync({ type: "blob" });
+    const zipFile = new File([blob], "export.zip");
+
+    const result = await extractFromZip(zipFile);
+    expect(result.size).toBe(1);
+    expect(result.get("connections.csv")).toBe("first version");
+  });
+
   it("silently ignores unrecognized files in zip", async () => {
     const JSZip = (await import("jszip")).default;
     const zip = new JSZip();
@@ -253,7 +267,17 @@ describe("summarizeFiles", () => {
     expect(summary.loaded).toContain("messages.csv");
     expect(summary.missing).toContain("positions.csv");
     expect(summary.missing).toContain("endorsements_received_info.csv");
-    expect(summary.enrichmentFileCount).toBe(1); // messages only
+    expect(summary.enrichmentFileCount).toBe(1); // messages only (positions.csv excluded)
+  });
+
+  it("excludes positions.csv from enrichment count (no parser yet)", () => {
+    const map = new Map([
+      ["connections.csv", "data"],
+      ["positions.csv", "data"],
+    ]);
+    const summary = summarizeFiles(map);
+    expect(summary.enrichmentFileCount).toBe(0);
+    expect(summary.loaded).toContain("positions.csv");
   });
 
   it("reports zero enrichment for connections-only", () => {

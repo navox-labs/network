@@ -260,7 +260,8 @@ export default function Home() {
         enrichment = buildEnrichmentSummary(
           fileSummary.loaded,
           enrichmentMap,
-          invitations
+          invitations,
+          messages.length
         );
       }
 
@@ -279,17 +280,24 @@ export default function Home() {
         generatedAt: new Date().toLocaleDateString("en-CA"),
       });
 
-      // Step 7: Save to localStorage (v2 schema)
-      const storagePayload: Record<string, unknown> = {
-        schemaVersion: 2,
-        connections: parsed,
-        gapAnalysis: gaps,
-        uploadedAt: new Date().toISOString(),
-      };
-      if (enrichment) {
-        storagePayload.enrichment = enrichment;
+      // Step 7: Save to localStorage (v2 schema) — isolated try/catch
+      // so a QuotaExceededError doesn't mask the successful parse
+      try {
+        const storagePayload: Record<string, unknown> = {
+          schemaVersion: 2,
+          connections: parsed,
+          gapAnalysis: gaps,
+          uploadedAt: new Date().toISOString(),
+        };
+        if (enrichment) {
+          storagePayload.enrichment = enrichment;
+        }
+        localStorage.setItem("navox-network-data", JSON.stringify(storagePayload));
+      } catch {
+        // Storage full — data is loaded in memory but won't persist across refresh.
+        // This is acceptable; user can still use the app this session.
+        console.warn("localStorage quota exceeded — data will not persist across refresh.");
       }
-      localStorage.setItem("navox-network-data", JSON.stringify(storagePayload));
 
       // Step 8: Build system prompt
       const ctx = buildAgentContext(parsed, gaps);
@@ -313,6 +321,7 @@ export default function Home() {
     setError(null);
     setActivePanel("graph");
     setDraftMessages(new Map());
+    setEnrichmentSummary(null);
     localStorage.removeItem("navox-network-data");
   };
 
