@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { X, Settings, Trash2, Check } from "lucide-react";
+import { X, Settings, Trash2, Check, Info } from "lucide-react";
 import {
   type AIProvider,
   type AIConfig,
@@ -189,7 +189,20 @@ export default function SettingsDialog({ isOpen, onClose }: Props) {
               value={apiKey}
               onChange={(e) => handlePaste(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }}
-              style={{ flex: 1 }}
+              style={{
+                flex: 1,
+                background: "var(--bg-card)",
+                border: "1px solid var(--border)",
+                borderRadius: 6,
+                padding: "7px 10px",
+                color: "var(--text-primary)",
+                fontSize: 13,
+                fontFamily: "var(--font-mono)",
+                outline: "none",
+                transition: "border-color 0.15s ease",
+              }}
+              onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(108,75,244,0.3)"; }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = "var(--border)"; }}
             />
             <button
               onClick={handleSave}
@@ -199,6 +212,26 @@ export default function SettingsDialog({ isOpen, onClose }: Props) {
             >
               {saved ? <Check size={14} /> : "Save"}
             </button>
+          </div>
+          {/* Data disclosure notice */}
+          <div style={{
+            marginTop: 8,
+            padding: "8px 10px",
+            background: "rgba(108,75,244,0.04)",
+            border: "1px solid rgba(108,75,244,0.08)",
+            borderRadius: 6,
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 6,
+          }}>
+            <Info size={11} color="var(--text-muted)" style={{ flexShrink: 0, marginTop: 2 }} />
+            <span style={{
+              fontSize: 11,
+              lineHeight: 1.5,
+              color: "var(--text-muted)",
+            }}>
+              AI features send connection names, companies, and positions to OpenAI or Anthropic to generate outreach messages. Your key is used directly — never sent to Navox servers — and is saved in this browser only, expiring after 30 days.
+            </span>
           </div>
         </div>
 
@@ -212,15 +245,8 @@ export default function SettingsDialog({ isOpen, onClose }: Props) {
           </div>
         )}
 
-        {/* Privacy note */}
-        <div style={{
-          padding: "14px 16px 16px",
-          fontSize: 11,
-          color: "var(--text-muted)",
-          lineHeight: 1.5,
-        }}>
-          Your key stays in your browser. Never sent to our servers.
-        </div>
+        {/* Bottom spacing */}
+        <div style={{ padding: "0 16px 16px" }} />
       </div>
     </>
   );

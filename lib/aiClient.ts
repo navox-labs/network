@@ -12,6 +12,7 @@ export interface AIConfig {
 }
 
 const STORAGE_KEY = "navox-ai-config";
+const KEY_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 /** Sentinel value used in draftMessages to indicate no API key is configured. */
 export const DRAFT_NO_KEY = "__NO_KEY__" as const;
@@ -28,7 +29,7 @@ export function detectProvider(key: string): AIProvider | null {
   return null;
 }
 
-/** Read saved AI config from localStorage. Returns null if not set or invalid. */
+/** Read saved AI config from localStorage. Returns null if not set, invalid, or expired. */
 export function getAIConfig(): AIConfig | null {
   if (typeof window === "undefined") return null;
   try {
@@ -41,6 +42,14 @@ export function getAIConfig(): AIConfig | null {
       typeof parsed.apiKey === "string" &&
       parsed.apiKey.length > 0
     ) {
+      // Check expiry if savedAt exists
+      if (typeof parsed.savedAt === "number") {
+        if (Date.now() - parsed.savedAt > KEY_MAX_AGE_MS) {
+          localStorage.removeItem(STORAGE_KEY);
+          return null;
+        }
+      }
+      // Legacy keys without savedAt are treated as valid
       return { provider: parsed.provider, apiKey: parsed.apiKey };
     }
     return null;
@@ -49,10 +58,13 @@ export function getAIConfig(): AIConfig | null {
   }
 }
 
-/** Persist AI config to localStorage. */
+/** Persist AI config to localStorage with a timestamp for expiry tracking. */
 export function saveAIConfig(config: AIConfig): void {
   if (typeof window === "undefined") return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify({ ...config, savedAt: Date.now() })
+  );
 }
 
 /** Remove AI config from localStorage. */

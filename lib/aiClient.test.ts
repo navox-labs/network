@@ -95,14 +95,44 @@ describe("getAIConfig", () => {
 });
 
 describe("saveAIConfig", () => {
-  it("persists config to localStorage", () => {
+  it("persists config with savedAt timestamp to localStorage", () => {
+    const now = 1700000000000;
+    vi.spyOn(Date, "now").mockReturnValue(now);
     const config: AIConfig = { provider: "anthropic", apiKey: "sk-ant-test" };
     saveAIConfig(config);
     expect(localStorageMock.setItem).toHaveBeenCalledWith(
       "navox-ai-config",
-      JSON.stringify(config)
+      JSON.stringify({ ...config, savedAt: now })
     );
     expect(getAIConfig()).toEqual(config);
+    vi.restoreAllMocks();
+  });
+
+  it("expires key after 30 days", () => {
+    const thirtyOneDaysAgo = Date.now() - 31 * 24 * 60 * 60 * 1000;
+    localStorageMock.setItem(
+      "navox-ai-config",
+      JSON.stringify({ provider: "openai", apiKey: "sk-test", savedAt: thirtyOneDaysAgo })
+    );
+    expect(getAIConfig()).toBeNull();
+    expect(localStorageMock.removeItem).toHaveBeenCalledWith("navox-ai-config");
+  });
+
+  it("keeps key within 30 days", () => {
+    const tenDaysAgo = Date.now() - 10 * 24 * 60 * 60 * 1000;
+    localStorageMock.setItem(
+      "navox-ai-config",
+      JSON.stringify({ provider: "openai", apiKey: "sk-test", savedAt: tenDaysAgo })
+    );
+    expect(getAIConfig()).toEqual({ provider: "openai", apiKey: "sk-test" });
+  });
+
+  it("treats legacy keys without savedAt as valid", () => {
+    localStorageMock.setItem(
+      "navox-ai-config",
+      JSON.stringify({ provider: "openai", apiKey: "sk-legacy" })
+    );
+    expect(getAIConfig()).toEqual({ provider: "openai", apiKey: "sk-legacy" });
   });
 });
 
