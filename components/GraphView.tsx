@@ -406,28 +406,6 @@ export default function GraphView({ graphData, connections, highlightedIds, sele
             Based on: {buildDataSourceString(selectedNode)}
           </div>
 
-          {onDraftMessage && (
-            <button
-              onClick={() => onDraftMessage(selectedNode)}
-              disabled={draftingId === selectedNode.id}
-              style={{
-                width: "100%",
-                padding: "8px 12px",
-                background: "var(--accent)",
-                color: "#fff",
-                border: "none",
-                borderRadius: 6,
-                fontSize: 13,
-                fontWeight: 500,
-                cursor: draftingId === selectedNode.id ? "not-allowed" : "pointer",
-                opacity: draftingId === selectedNode.id ? 0.6 : 1,
-                marginBottom: 8,
-              }}
-            >
-              {draftingId === selectedNode.id ? "Drafting..." : "Draft Message"}
-            </button>
-          )}
-
           <NodeCoachCard
             connection={selectedNode}
             coachData={getNodeCoachData(selectedNode)}

@@ -53,11 +53,11 @@ export function NodeCoachCard({ connection, coachData, onDraftMessage, draftMess
         → {coachData.suggestion}
       </div>
 
-      {!draftMessage && !isDrafting && connection.tieCategory !== "dormant" && (
+      {!isDrafting && !draftMessage && (
         <button
           onClick={() => onDraftMessage(connection)}
           className="btn btn-primary"
-          style={{ padding: "5px 12px", fontSize: 11, width: "100%" }}
+          style={{ fontSize: 12, padding: "7px 14px", width: "100%", marginBottom: 6 }}
         >
           Draft Message
         </button>
