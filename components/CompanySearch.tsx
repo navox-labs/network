@@ -200,8 +200,6 @@ function ResultCard({ connection: c, relevanceScore, pathDescription, rank, onSe
     weak: "var(--weak)", dormant: "var(--text-muted)",
   };
 
-  const linkedInSearch = `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(c.name)}`;
-
   return (
     <div
       onClick={onSelect}
@@ -281,25 +279,27 @@ function ResultCard({ connection: c, relevanceScore, pathDescription, rank, onSe
       </div>
 
       {/* LinkedIn link */}
-      <a
-        href={linkedInSearch}
-        target="_blank"
-        rel="noopener noreferrer"
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          display: "flex", alignItems: "center", justifyContent: "center",
-          width: 32, height: 32, borderRadius: 7,
-          background: "var(--bg-card)", border: "1px solid var(--border)",
-          color: "var(--text-muted)", flexShrink: 0,
-          transition: "color 0.15s",
-          textDecoration: "none",
-        }}
-        onMouseEnter={e => (e.currentTarget.style.color = "var(--accent)")}
-        onMouseLeave={e => (e.currentTarget.style.color = "var(--text-muted)")}
-        title="Open LinkedIn search"
-      >
-        <ExternalLink size={13} />
-      </a>
+      {c.url && (
+        <a
+          href={c.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "center",
+            width: 32, height: 32, borderRadius: 7,
+            background: "var(--bg-card)", border: "1px solid var(--border)",
+            color: "var(--text-muted)", flexShrink: 0,
+            transition: "color 0.15s",
+            textDecoration: "none",
+          }}
+          onMouseEnter={e => (e.currentTarget.style.color = "var(--accent)")}
+          onMouseLeave={e => (e.currentTarget.style.color = "var(--text-muted)")}
+          title="Open LinkedIn profile"
+        >
+          <ExternalLink size={13} />
+        </a>
+      )}
     </div>
   );
 }
