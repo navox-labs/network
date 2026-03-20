@@ -363,7 +363,21 @@ export default function GraphView({ graphData, connections, highlightedIds, sele
 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
             <div>
-              <div style={{ fontWeight: 600, fontSize: 15, color: "var(--text-primary)" }}>{selectedNode.name}</div>
+              {selectedNode.url ? (
+                <a
+                  href={selectedNode.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  style={{ fontWeight: 600, fontSize: 15, color: "var(--text-primary)", textDecoration: "none", cursor: "pointer" }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.textDecoration = "underline"; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.textDecoration = "none"; }}
+                >
+                  {selectedNode.name}
+                </a>
+              ) : (
+                <div style={{ fontWeight: 600, fontSize: 15, color: "var(--text-primary)" }}>{selectedNode.name}</div>
+              )}
               <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
                 {selectedNode.position}{selectedNode.company ? ` @ ${selectedNode.company}` : ""}
               </div>

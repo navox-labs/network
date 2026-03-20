@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import { Upload, X, CheckCircle, AlertTriangle } from "lucide-react";
 import type { EnrichmentSummary } from "@/lib/enrichment";
 import {
@@ -28,7 +28,6 @@ export default function EnrichBanner({
   enrichResult,
 }: EnrichBannerProps) {
   const [isDragOver, setIsDragOver] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
 
   const loadedSet = new Set(
@@ -134,6 +133,7 @@ export default function EnrichBanner({
 
   const dismissButton = (
     <button
+      type="button"
       onClick={() => {
         try {
           localStorage.setItem(DISMISS_KEY, "true");
@@ -172,24 +172,25 @@ export default function EnrichBanner({
   );
 
   const browseButton = (
-    <button
-      onClick={() => fileInputRef.current?.click()}
+    <label
+      htmlFor="enrich-file-input"
       className="btn btn-primary"
       style={{
         padding: "5px 14px",
         fontSize: 12,
         flexShrink: 0,
         whiteSpace: "nowrap",
+        cursor: "pointer",
         ...(isMobile ? { flex: 1 } : {}),
       }}
     >
       Browse files
-    </button>
+    </label>
   );
 
   const fileInput = (
     <input
-      ref={fileInputRef}
+      id="enrich-file-input"
       type="file"
       accept=".csv,.zip"
       multiple
