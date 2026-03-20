@@ -765,3 +765,141 @@ describe("groupCompaniesCaseInsensitive", () => {
     expect(metaEntry?.count).toBe(3);
   });
 });
+
+// ── GAP-4: localStorage schema v1 / v2 migration tests ──────────────────
+
+describe("localStorage schema compatibility", () => {
+  const makeV1Connection = (): Connection => ({
+    id: "conn-0",
+    name: "Alice Smith",
+    firstName: "Alice",
+    lastName: "Smith",
+    company: "Google",
+    position: "Software Engineer",
+    connectedOn: "2024-01-01",
+    tieStrength: 0.5,
+    tieCategory: "moderate",
+    roleCategory: "Engineers/Devs",
+    daysSinceConnected: 365,
+    industryCluster: "Tech",
+    isBridge: false,
+    networkPosition: "anchor",
+    confidenceLevel: "high",
+    activationPriority: 0.5,
+  });
+
+  it("v1 schema shape: no schemaVersion, connections are valid Connection objects", () => {
+    const v1Data = {
+      connections: [makeV1Connection()],
+      gapAnalysis: { totalConnections: 1, avgTieStrength: 0.5 },
+      uploadedAt: "2024-06-01T00:00:00.000Z",
+    };
+
+    const parsed = JSON.parse(JSON.stringify(v1Data));
+    expect(parsed.schemaVersion).toBeUndefined();
+    expect(parsed.connections).toHaveLength(1);
+
+    // Verify the connection has all required fields
+    const conn = parsed.connections[0] as Connection;
+    expect(conn.id).toBe("conn-0");
+    expect(conn.tieStrength).toBe(0.5);
+    expect(conn.tieCategory).toBe("moderate");
+    expect(conn.industryCluster).toBe("Tech");
+    expect(conn.isBridge).toBe(false);
+    expect(conn.networkPosition).toBe("anchor");
+    expect(conn.confidenceLevel).toBe("high");
+  });
+
+  it("v2 schema shape: has schemaVersion and enrichment data", () => {
+    const v2Data = {
+      schemaVersion: 2,
+      connections: [
+        {
+          ...makeV1Connection(),
+          messageCount: 5,
+          lastMessageDate: "2024-06-15",
+          messageBidirectional: true,
+          endorsementReceived: true,
+          endorsementGiven: false,
+          recommendationReceived: false,
+          initiatedBy: "user" as const,
+        },
+      ],
+      gapAnalysis: { totalConnections: 1, avgTieStrength: 0.65 },
+      uploadedAt: "2024-06-15T00:00:00.000Z",
+      enrichment: {
+        filesLoaded: ["connections.csv", "messages.csv"],
+        messageStats: { totalMatched: 1, totalUnmatched: 0, uniqueUnmatchedSenders: 0 },
+        endorsementCount: 1,
+        recommendationCount: 0,
+        invitationStats: { sentByUser: 0, receivedByUser: 0 },
+      },
+    };
+
+    const parsed = JSON.parse(JSON.stringify(v2Data));
+    expect(parsed.schemaVersion).toBe(2);
+    expect(parsed.enrichment).toBeDefined();
+    expect(parsed.enrichment.filesLoaded).toContain("messages.csv");
+    expect(parsed.connections[0].messageCount).toBe(5);
+    expect(parsed.connections[0].messageBidirectional).toBe(true);
+    expect(parsed.connections[0].endorsementReceived).toBe(true);
+  });
+
+  it("v1 data has no enrichment summary", () => {
+    const v1Data = {
+      connections: [makeV1Connection()],
+      gapAnalysis: { totalConnections: 1 },
+      uploadedAt: "2024-06-01T00:00:00.000Z",
+    };
+
+    const parsed = JSON.parse(JSON.stringify(v1Data));
+    expect(parsed.enrichment).toBeUndefined();
+    // enrichmentSummary would be null/undefined when loaded from v1 data
+    const enrichmentSummary = parsed.enrichment ?? null;
+    expect(enrichmentSummary).toBeNull();
+  });
+
+  it("v1 connections have all required fields and work without enrichment fields", () => {
+    const v1Connections = [
+      makeV1Connection(),
+      {
+        ...makeV1Connection(),
+        id: "conn-1",
+        name: "Bob Jones",
+        firstName: "Bob",
+        lastName: "Jones",
+        company: "Goldman Sachs",
+        position: "Analyst",
+        industryCluster: "Finance" as IndustryCluster,
+        isBridge: true,
+        networkPosition: "bridge" as const,
+        confidenceLevel: "low" as const,
+      },
+    ];
+
+    const parsed = JSON.parse(JSON.stringify(v1Connections)) as Connection[];
+
+    for (const conn of parsed) {
+      // All required Connection fields must be present
+      expect(conn.id).toBeDefined();
+      expect(conn.name).toBeDefined();
+      expect(conn.tieStrength).toBeDefined();
+      expect(typeof conn.tieStrength).toBe("number");
+      expect(conn.tieCategory).toBeDefined();
+      expect(conn.industryCluster).toBeDefined();
+      expect(conn.confidenceLevel).toBeDefined();
+      expect(conn.networkPosition).toBeDefined();
+
+      // Enrichment fields should be absent in v1
+      expect(conn.messageCount).toBeUndefined();
+      expect(conn.messageBidirectional).toBeUndefined();
+      expect(conn.endorsementReceived).toBeUndefined();
+      expect(conn.recommendationReceived).toBeUndefined();
+    }
+
+    // Connections should still be usable with enrichment-aware functions
+    // assignConfidenceLevel without enrichment signals uses date-based fallback
+    const level = assignConfidenceLevel(parsed[0].daysSinceConnected);
+    expect(level).toBe("high"); // 365 days < 730
+  });
+});

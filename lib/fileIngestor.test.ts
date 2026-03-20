@@ -290,3 +290,146 @@ describe("summarizeFiles", () => {
     expect(summary.hasConnections).toBe(true);
   });
 });
+
+// ── Size limit enforcement (zip bomb protection) ────────────────────────
+
+describe("extractFromZip — size limits", () => {
+  const MAX_FILE_BYTES = 10 * 1024 * 1024;
+
+  it("throws when a single file exceeds 10MB per-file limit (decompressed)", async () => {
+    const JSZip = (await import("jszip")).default;
+    const zip = new JSZip();
+    // content.length * 2 (UTF-16) must exceed MAX_FILE_BYTES
+    // So we need content.length > MAX_FILE_BYTES / 2
+    const oversizedLength = Math.floor(MAX_FILE_BYTES / 2) + 1;
+    const oversizedContent = "x".repeat(oversizedLength);
+    zip.file("Connections.csv", oversizedContent);
+
+    const blob = await zip.generateAsync({ type: "blob" });
+    const zipFile = new File([blob], "export.zip");
+
+    await expect(extractFromZip(zipFile)).rejects.toThrow(/exceeds 10 MB limit/);
+  });
+
+  it("throws when multiple files total >50MB decompressed", async () => {
+    const JSZip = (await import("jszip")).default;
+    const zip = new JSZip();
+    const MAX_TOTAL_BYTES = 50 * 1024 * 1024;
+    // Create multiple files that individually are under 10MB but together exceed 50MB
+    // Each file: content.length * 2 must be just under 10MB
+    const perFileLength = Math.floor(MAX_FILE_BYTES / 2) - 100; // safely under per-file limit
+    const filesNeeded = Math.ceil(MAX_TOTAL_BYTES / (perFileLength * 2)) + 1;
+
+    // Use recognized filenames — we have 7 recognized files
+    const recognizedNames = [
+      "Connections.csv", "messages.csv", "Positions.csv",
+      "Endorsement_Received_Info.csv", "Endorsement_Given_Info.csv",
+      "Recommendations_Received.csv", "Invitations.csv",
+    ];
+
+    for (let i = 0; i < Math.min(filesNeeded, recognizedNames.length); i++) {
+      zip.file(recognizedNames[i], "x".repeat(perFileLength));
+    }
+
+    const blob = await zip.generateAsync({ type: "blob" });
+    const zipFile = new File([blob], "export.zip");
+
+    await expect(extractFromZip(zipFile)).rejects.toThrow(/exceeds maximum allowed size|exceeds 10 MB/);
+  });
+
+  it("succeeds when files are under limits", async () => {
+    const JSZip = (await import("jszip")).default;
+    const zip = new JSZip();
+    zip.file("Connections.csv", "First Name,Last Name\nAlice,Smith");
+    zip.file("messages.csv", "SENDER PROFILE URL\nhttps://linkedin.com/in/alice");
+
+    const blob = await zip.generateAsync({ type: "blob" });
+    const zipFile = new File([blob], "export.zip");
+
+    const result = await extractFromZip(zipFile);
+    expect(result.size).toBe(2);
+  });
+
+  it("succeeds when file is at exactly the boundary (content.length * 2 === MAX_FILE_BYTES)", async () => {
+    const JSZip = (await import("jszip")).default;
+    const zip = new JSZip();
+    // content.length * 2 = MAX_FILE_BYTES exactly — this should NOT exceed, check is `>`
+    const exactLength = MAX_FILE_BYTES / 2;
+    zip.file("Connections.csv", "x".repeat(exactLength));
+
+    const blob = await zip.generateAsync({ type: "blob" });
+    const zipFile = new File([blob], "export.zip");
+
+    // contentBytes = exactLength * 2 = MAX_FILE_BYTES, check is `> MAX_FILE_BYTES` so should pass
+    const result = await extractFromZip(zipFile);
+    expect(result.size).toBe(1);
+  });
+});
+
+describe("extractFromFolder — size limits", () => {
+  const makeFileWithSize = (name: string, size: number, relativePath: string): File => {
+    // Create file content of specific size (file.size check is used)
+    const content = "x".repeat(size);
+    const f = new File([content], name, { type: "text/csv" });
+    Object.defineProperty(f, "webkitRelativePath", { value: relativePath });
+    return f;
+  };
+
+  it("throws when a single file exceeds 10MB", async () => {
+    const oversizedFile = makeFileWithSize(
+      "Connections.csv",
+      10 * 1024 * 1024 + 1,
+      "export/Connections.csv"
+    );
+
+    await expect(extractFromFolder([oversizedFile])).rejects.toThrow(/exceeds 10 MB limit/);
+  });
+
+  it("throws when multiple files total >50MB", async () => {
+    // Create files just under 10MB each but totaling over 50MB
+    const fileSize = 9 * 1024 * 1024; // 9MB each
+    const files = [
+      makeFileWithSize("Connections.csv", fileSize, "export/Connections.csv"),
+      makeFileWithSize("messages.csv", fileSize, "export/messages.csv"),
+      makeFileWithSize("Positions.csv", fileSize, "export/Positions.csv"),
+      makeFileWithSize("Endorsement_Received_Info.csv", fileSize, "export/Endorsement_Received_Info.csv"),
+      makeFileWithSize("Endorsement_Given_Info.csv", fileSize, "export/Endorsement_Given_Info.csv"),
+      makeFileWithSize("Recommendations_Received.csv", fileSize, "export/Recommendations_Received.csv"),
+    ];
+
+    await expect(extractFromFolder(files)).rejects.toThrow(/exceeds 50 MB limit/);
+  });
+});
+
+describe("extractFromFiles — size limits", () => {
+  const makeFileWithSize = (name: string, size: number): File => {
+    const content = "x".repeat(size);
+    return new File([content], name, { type: "text/csv" });
+  };
+
+  it("throws when a single file exceeds 10MB", async () => {
+    const oversizedFile = makeFileWithSize("Connections.csv", 10 * 1024 * 1024 + 1);
+    await expect(extractFromFiles([oversizedFile])).rejects.toThrow(/exceeds 10 MB limit/);
+  });
+
+  it("throws when multiple files total >50MB", async () => {
+    const fileSize = 9 * 1024 * 1024;
+    const files = [
+      makeFileWithSize("Connections.csv", fileSize),
+      makeFileWithSize("messages.csv", fileSize),
+      makeFileWithSize("Positions.csv", fileSize),
+      makeFileWithSize("Endorsement_Received_Info.csv", fileSize),
+      makeFileWithSize("Endorsement_Given_Info.csv", fileSize),
+      makeFileWithSize("Recommendations_Received.csv", fileSize),
+    ];
+
+    await expect(extractFromFiles(files)).rejects.toThrow(/exceeds 50 MB limit/);
+  });
+
+  it("succeeds when file is at exactly 10MB", async () => {
+    const exactFile = makeFileWithSize("Connections.csv", 10 * 1024 * 1024);
+    // file.size check is `> MAX_FILE_BYTES`, so exactly 10MB should pass
+    const result = await extractFromFiles([exactFile]);
+    expect(result.size).toBe(1);
+  });
+});

@@ -19,7 +19,8 @@ import {
   type RawInvitationRow,
   type MessageRecord,
 } from "./enrichment";
-import type { Connection } from "./tieStrength";
+import type { Connection, EnrichmentSignals } from "./tieStrength";
+import { assignConfidenceLevel, enrichTieStrength } from "./tieStrength";
 
 // ── Helper ──────────────────────────────────────────────────────────────
 
@@ -890,5 +891,253 @@ describe("buildEnrichmentSummaryFromConnections", () => {
     );
 
     expect(summary.messageStats.uniqueUnmatchedSenders).toBe(1); // only stranger, not user
+  });
+});
+
+// ── GAP-2: Full upload pipeline integration test ────────────────────────
+
+describe("full upload pipeline (data flow integration)", () => {
+  const ALICE_URL = "https://www.linkedin.com/in/alice";
+  const BOB_URL = "https://www.linkedin.com/in/bob";
+  const CAROL_URL = "https://www.linkedin.com/in/carol";
+  const USER_URL = "https://www.linkedin.com/in/me";
+
+  /**
+   * Simulates what page.tsx handleFiles does: parse CSV, compute enrichment,
+   * apply enrichment to connections, assign confidence, boost tie strength.
+   */
+  function runPipeline(connections: Connection[], enrichmentMap: Map<string, import("./enrichment").ConnectionEnrichment>) {
+    for (const c of connections) {
+      if (!c.url) continue;
+      const normalizedUrl = normalizeLinkedInUrl(c.url);
+      const enrichment = enrichmentMap.get(normalizedUrl);
+
+      if (enrichment) {
+        c.messageCount = enrichment.messageCount;
+        c.lastMessageDate = enrichment.lastMessageDate || undefined;
+        c.messageBidirectional = enrichment.messageBidirectional;
+        c.endorsementReceived = enrichment.endorsementReceived;
+        c.endorsementGiven = enrichment.endorsementGiven;
+        c.recommendationReceived = enrichment.recommendationReceived;
+        c.initiatedBy = enrichment.initiatedBy || undefined;
+      }
+
+      // Reassign confidence using enrichment-aware model
+      const signals = enrichment
+        ? {
+            hasMessages: enrichment.messageCount > 0,
+            messageBidirectional: enrichment.messageBidirectional,
+            hasEndorsement: enrichment.endorsementReceived,
+            hasRecommendation: enrichment.recommendationReceived,
+            hasInvitation: enrichment.initiatedBy !== null,
+          }
+        : {};
+      c.confidenceLevel = assignConfidenceLevel(c.daysSinceConnected, signals);
+
+      if (enrichment) {
+        c.tieStrength = enrichTieStrength(c.tieStrength, {
+          ...signals,
+          messageCount: enrichment.messageCount,
+          lastMessageDate: enrichment.lastMessageDate || undefined,
+        });
+      }
+    }
+  }
+
+  it("connections with bidirectional messages get HIGH confidence", () => {
+    const connections = [
+      makeConnection({ id: "1", url: ALICE_URL }),
+    ];
+
+    const messages: MessageRecord[] = [
+      msg(USER_URL, "2024-06-01", "sent", "conv-1"),
+      msg(ALICE_URL, "2024-06-02", "received", "conv-1"),
+    ];
+
+    const enrichmentMap = computeConnectionEnrichments(messages, [], [], [], connections);
+    runPipeline(connections, enrichmentMap);
+
+    expect(connections[0].confidenceLevel).toBe("high");
+    expect(connections[0].messageBidirectional).toBe(true);
+    expect(connections[0].messageCount).toBe(2);
+  });
+
+  it("connections with one-way messages get MEDIUM confidence", () => {
+    const connections = [
+      makeConnection({ id: "1", url: ALICE_URL }),
+    ];
+
+    // Only alice sent messages (received from her perspective), user never replied
+    const messages: MessageRecord[] = [
+      msg(ALICE_URL, "2024-06-01", "received", "conv-1"),
+      msg(ALICE_URL, "2024-06-02", "received", "conv-1"),
+    ];
+
+    const enrichmentMap = computeConnectionEnrichments(messages, [], [], [], connections);
+    runPipeline(connections, enrichmentMap);
+
+    expect(connections[0].confidenceLevel).toBe("medium");
+    expect(connections[0].messageBidirectional).toBe(false);
+    expect(connections[0].messageCount).toBe(2);
+  });
+
+  it("connections with no enrichment get LOW confidence", () => {
+    const connections = [
+      makeConnection({ id: "1", url: ALICE_URL }),
+      makeConnection({ id: "2", url: BOB_URL }),
+      makeConnection({ id: "3", url: CAROL_URL }),
+    ];
+
+    // Messages only match Alice, not Bob or Carol
+    const messages: MessageRecord[] = [
+      msg(USER_URL, "2024-06-01", "sent", "conv-1"),
+      msg(ALICE_URL, "2024-06-02", "received", "conv-1"),
+    ];
+
+    const enrichmentMap = computeConnectionEnrichments(messages, [], [], [], connections);
+    runPipeline(connections, enrichmentMap);
+
+    expect(connections[0].confidenceLevel).toBe("high"); // Alice: bidirectional
+    expect(connections[1].confidenceLevel).toBe("low");  // Bob: no enrichment
+    expect(connections[2].confidenceLevel).toBe("low");  // Carol: no enrichment
+  });
+
+  it("enrichTieStrength boosts are applied correctly", () => {
+    const baseTieStrength = 0.4;
+    const connections = [
+      makeConnection({ id: "1", url: ALICE_URL, tieStrength: baseTieStrength }),
+    ];
+
+    const messages: MessageRecord[] = [
+      msg(USER_URL, "2024-06-01", "sent", "conv-1"),
+      msg(ALICE_URL, "2024-06-02", "received", "conv-1"),
+    ];
+
+    const endorsements = [{ endorserProfileUrl: ALICE_URL, skillName: "Python" }];
+
+    const enrichmentMap = computeConnectionEnrichments(messages, endorsements, [], [], connections);
+    runPipeline(connections, enrichmentMap);
+
+    // baseTieStrength + 0.15 (bidirectional) + 0.05 (endorsement) = 0.6
+    expect(connections[0].tieStrength).toBe(0.6);
+  });
+
+  it("buildEnrichmentSummary has correct totalMatched count", () => {
+    const connections = [
+      makeConnection({ id: "1", url: ALICE_URL }),
+      makeConnection({ id: "2", url: BOB_URL }),
+      makeConnection({ id: "3", url: CAROL_URL }),
+    ];
+
+    const messages: MessageRecord[] = [
+      msg(USER_URL, "2024-06-01", "sent", "conv-1"),
+      msg(ALICE_URL, "2024-06-02", "received", "conv-1"),
+      msg(BOB_URL, "2024-06-03", "received", "conv-2"),
+    ];
+
+    const enrichmentMap = computeConnectionEnrichments(messages, [], [], [], connections);
+    const summary = buildEnrichmentSummary(
+      ["connections.csv", "messages.csv"],
+      enrichmentMap,
+      [],
+      messages.length,
+      messages,
+      connections
+    );
+
+    // Alice and Bob both have messages matched
+    expect(summary.messageStats.totalMatched).toBe(2);
+  });
+});
+
+// ── GAP-3: Incremental enrichment (two drops preserve data) ─────────────
+
+describe("incremental enrichment — two drops preserve data", () => {
+  const ALICE_URL = "https://www.linkedin.com/in/alice";
+  const BOB_URL = "https://www.linkedin.com/in/bob";
+
+  function applyEnrichmentToConnections(
+    conns: Connection[],
+    enrichmentMap: Map<string, import("./enrichment").ConnectionEnrichment>
+  ): void {
+    for (const c of conns) {
+      if (!c.url) continue;
+      const normalizedUrl = normalizeLinkedInUrl(c.url);
+      const enrichment = enrichmentMap.get(normalizedUrl);
+      if (enrichment) {
+        c.messageCount = enrichment.messageCount;
+        c.lastMessageDate = enrichment.lastMessageDate || undefined;
+        c.messageBidirectional = enrichment.messageBidirectional;
+        c.endorsementReceived = enrichment.endorsementReceived;
+        c.endorsementGiven = enrichment.endorsementGiven;
+        c.recommendationReceived = enrichment.recommendationReceived;
+        c.initiatedBy = enrichment.initiatedBy || undefined;
+      }
+    }
+  }
+
+  it("second drop preserves first drop data for non-overlapping connections", () => {
+    const connections = [
+      makeConnection({ id: "1", url: ALICE_URL }),
+      makeConnection({ id: "2", url: BOB_URL }),
+    ];
+
+    // First drop: messages enrich Alice
+    const messages: MessageRecord[] = [
+      msg(ALICE_URL, "2024-06-01", "received", "conv-1"),
+      msg(ALICE_URL, "2024-06-02", "received", "conv-1"),
+    ];
+    const enrichmentMap1 = computeConnectionEnrichments(messages, [], [], [], connections);
+    applyEnrichmentToConnections(connections, enrichmentMap1);
+
+    // Verify first drop applied
+    expect(connections[0].messageCount).toBe(2);
+    expect(connections[0].messageBidirectional).toBe(false);
+
+    // Second drop: endorsements enrich Bob (not Alice)
+    const endorsements = [{ endorserProfileUrl: BOB_URL, skillName: "TypeScript" }];
+    const enrichmentMap2 = computeConnectionEnrichments([], endorsements, [], [], connections);
+
+    // Simulate incremental: shallow copy then apply second enrichment
+    const updatedConns = [...connections];
+    applyEnrichmentToConnections(updatedConns, enrichmentMap2);
+
+    // Alice's message data from first drop must survive
+    expect(updatedConns[0].messageCount).toBe(2);
+    expect(updatedConns[0].messageBidirectional).toBe(false);
+
+    // Bob's endorsement data from second drop must be present
+    expect(updatedConns[1].endorsementReceived).toBe(true);
+  });
+
+  it("cumulative summary reflects both drops", () => {
+    const connections = [
+      makeConnection({ id: "1", url: ALICE_URL }),
+      makeConnection({ id: "2", url: BOB_URL }),
+    ];
+
+    // First drop: messages for Alice
+    const messages: MessageRecord[] = [
+      msg(ALICE_URL, "2024-06-01", "received", "conv-1"),
+    ];
+    const enrichmentMap1 = computeConnectionEnrichments(messages, [], [], [], connections);
+    applyEnrichmentToConnections(connections, enrichmentMap1);
+
+    // Second drop: endorsements for Bob
+    const endorsements = [{ endorserProfileUrl: BOB_URL, skillName: "Go" }];
+    const enrichmentMap2 = computeConnectionEnrichments([], endorsements, [], [], connections);
+    const updatedConns = [...connections];
+    applyEnrichmentToConnections(updatedConns, enrichmentMap2);
+
+    // Build summary from final connection state (cumulative)
+    const summary = buildEnrichmentSummaryFromConnections(
+      ["connections.csv", "messages.csv", "endorsement_received_info.csv"],
+      updatedConns,
+      []
+    );
+
+    expect(summary.messageStats.totalMatched).toBe(1);  // Alice
+    expect(summary.endorsementCount).toBe(1);            // Bob
+    expect(summary.filesLoaded).toHaveLength(3);
   });
 });

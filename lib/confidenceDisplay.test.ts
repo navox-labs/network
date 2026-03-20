@@ -93,7 +93,7 @@ describe("buildDataSourceString", () => {
   });
 
   it("handles single message correctly", () => {
-    expect(buildDataSourceString({ messageCount: 1 })).toBe("1 messages");
+    expect(buildDataSourceString({ messageCount: 1 })).toBe("1 message");
   });
 
   it("ignores false boolean fields", () => {

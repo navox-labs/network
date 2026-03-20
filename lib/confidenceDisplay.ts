@@ -30,7 +30,7 @@ export function buildDataSourceString(conn: {
   const parts: string[] = [];
 
   if (conn.messageCount && conn.messageCount > 0) {
-    let msg = `${conn.messageCount} messages`;
+    let msg = `${conn.messageCount} ${conn.messageCount === 1 ? "message" : "messages"}`;
     if (conn.messageBidirectional) {
       msg += " (bidirectional)";
     }
