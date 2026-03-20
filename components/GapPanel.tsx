@@ -291,13 +291,11 @@ export default function GapPanel({ gapAnalysis, connections, onSwitchToSearch, e
         </div>
       )}
 
-      {/* Data Loaded section — collapsible, at bottom */}
-      {enrichmentSummary && (
-        <CollapsibleDataLoaded
-          enrichmentSummary={enrichmentSummary}
-          totalConnections={totalConnectionsProp ?? totalConnections}
-        />
-      )}
+      {/* Data Loaded section — collapsible, at bottom, always visible */}
+      <CollapsibleDataLoaded
+        enrichmentSummary={enrichmentSummary ?? null}
+        totalConnections={totalConnectionsProp ?? totalConnections}
+      />
     </div>
   );
 }
@@ -425,13 +423,15 @@ function CollapsibleDataLoaded({
   enrichmentSummary,
   totalConnections,
 }: {
-  enrichmentSummary: EnrichmentSummary;
+  enrichmentSummary: EnrichmentSummary | null;
   totalConnections: number;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const loadedSet = new Set(
-    enrichmentSummary.filesLoaded.map((f) => f.toLowerCase())
+    (enrichmentSummary?.filesLoaded ?? []).map((f) => f.toLowerCase())
   );
+  // connections.csv is always loaded if we're showing this panel
+  if (!loadedSet.has("connections.csv")) loadedSet.add("connections.csv");
   const loadedCount = DATA_FILES.filter((f) => loadedSet.has(f.key)).length;
 
   return (
@@ -488,32 +488,36 @@ function DataLoadedSection({
   enrichmentSummary,
   totalConnections,
 }: {
-  enrichmentSummary: EnrichmentSummary;
+  enrichmentSummary: EnrichmentSummary | null;
   totalConnections: number;
 }) {
   const loadedSet = new Set(
-    enrichmentSummary.filesLoaded.map((f) => f.toLowerCase())
+    (enrichmentSummary?.filesLoaded ?? []).map((f) => f.toLowerCase())
   );
+  if (!loadedSet.has("connections.csv")) loadedSet.add("connections.csv");
 
   const getDetail = (key: string): string => {
+    if (!enrichmentSummary && key !== "connections.csv") {
+      return "not loaded";
+    }
     switch (key) {
       case "connections.csv":
         return `${totalConnections} connections`;
       case "messages.csv":
         if (!loadedSet.has(key)) return "not loaded (upload to improve accuracy)";
-        return `${enrichmentSummary.messageStats.totalMatched + enrichmentSummary.messageStats.totalUnmatched} messages, ${enrichmentSummary.messageStats.totalMatched} matched to connections`;
+        return `${enrichmentSummary!.messageStats.totalMatched + enrichmentSummary!.messageStats.totalUnmatched} messages, ${enrichmentSummary!.messageStats.totalMatched} matched to connections`;
       case "endorsement_received_info.csv":
         if (!loadedSet.has(key)) return "not loaded (upload to improve accuracy)";
-        return `${enrichmentSummary.endorsementCount} endorsements matched`;
+        return `${enrichmentSummary!.endorsementCount} endorsements matched`;
       case "endorsement_given_info.csv":
         if (!loadedSet.has(key)) return "not loaded (upload to improve accuracy)";
         return "endorsements given loaded";
       case "recommendations_received.csv":
         if (!loadedSet.has(key)) return "not loaded";
-        return `${enrichmentSummary.recommendationCount} recommendations matched`;
+        return `${enrichmentSummary!.recommendationCount} recommendations matched`;
       case "invitations.csv":
         if (!loadedSet.has(key)) return "not loaded";
-        return `${enrichmentSummary.invitationStats.sentByUser + enrichmentSummary.invitationStats.receivedByUser} invitations`;
+        return `${enrichmentSummary!.invitationStats.sentByUser + enrichmentSummary!.invitationStats.receivedByUser} invitations`;
       default:
         return "";
     }

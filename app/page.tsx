@@ -104,7 +104,7 @@ export default function Home() {
       setGraphData(graph);
       setGapAnalysis(gaps);
       setCsvMeta({
-        filename: "Connections.csv",
+        filename: stored.displayFilename || "LinkedIn Export",
         generatedAt: new Date(stored.uploadedAt).toLocaleDateString("en-CA"),
       });
 
@@ -305,8 +305,18 @@ export default function Home() {
       setGraphData(graph);
       setGapAnalysis(gaps);
       setEnrichmentSummary(enrichment);
+      // Determine display name: zip filename > folder name > fallback
+      let displayFilename = "LinkedIn Export";
+      const zipFile = files.find((f) => f.name.toLowerCase().endsWith(".zip"));
+      if (zipFile) {
+        displayFilename = zipFile.name;
+      } else if (files[0]?.webkitRelativePath) {
+        const folderName = files[0].webkitRelativePath.split("/")[0];
+        if (folderName) displayFilename = folderName;
+      }
+
       setCsvMeta({
-        filename: files[0]?.name || "Connections.csv",
+        filename: displayFilename,
         generatedAt: new Date().toLocaleDateString("en-CA"),
       });
 
@@ -318,6 +328,7 @@ export default function Home() {
           connections: parsed,
           gapAnalysis: gaps,
           uploadedAt: new Date().toISOString(),
+          displayFilename,
         };
         if (enrichment) {
           storagePayload.enrichment = enrichment;
