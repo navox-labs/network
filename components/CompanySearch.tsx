@@ -239,7 +239,24 @@ function ResultCard({ connection: c, relevanceScore, pathDescription, rank, onSe
       {/* Info */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 2 }}>
-          <span style={{ fontWeight: 600, fontSize: 14, color: "var(--text-primary)" }}>{c.name}</span>
+          {c.url ? (
+            <a
+              href={c.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                fontWeight: 600, fontSize: 14, color: "var(--text-primary)",
+                textDecoration: "none", cursor: "pointer",
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = "underline"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = "none"; }}
+            >
+              {c.name}
+            </a>
+          ) : (
+            <span style={{ fontWeight: 600, fontSize: 14, color: "var(--text-primary)" }}>{c.name}</span>
+          )}
           <span style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
             {Math.round(relevanceScore * 100)}% match
           </span>

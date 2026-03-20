@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useRef, useCallback, useState, useEffect, useMemo } from "react";
-import { ChevronDown } from "lucide-react";
 import type { Connection, GraphData, GraphNode, RoleCategory } from "@/lib/tieStrength";
 import { getNodeCoachData } from "@/lib/coachInsights";
 import { getConfidenceBadgeStyle, buildDataSourceString } from "@/lib/confidenceDisplay";
@@ -64,17 +63,6 @@ export default function GraphView({ graphData, connections, highlightedIds, sele
   const [filterRole, setFilterRole] = useState<RoleCategory | null>(null);
   const [filterTie, setFilterTie] = useState<string | null>(null);
   const [legendOpen, setLegendOpen] = useState(false);
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const prevSelectedIdRef = useRef<string | null>(null);
-
-  // Reset Tier 2 to collapsed when a new node is selected
-  useEffect(() => {
-    const currentId = selectedNode?.id ?? null;
-    if (currentId !== prevSelectedIdRef.current) {
-      setDetailsOpen(false);
-      prevSelectedIdRef.current = currentId;
-    }
-  }, [selectedNode]);
 
   // Lazy load react-force-graph-2d on client (bypasses next/dynamic ref issues)
   useEffect(() => {
@@ -338,15 +326,24 @@ export default function GraphView({ graphData, connections, highlightedIds, sele
           </div>
 
           <div style={{ borderTop: "1px solid var(--border)", marginTop: 8, paddingTop: 8 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--text-muted)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>
               <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--moderate)" }} />
               <span>= Bridge node</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--text-muted)" }}>
+              <div style={{
+                width: 10, height: 10, borderRadius: "50%",
+                background: "transparent",
+                border: "2px solid rgba(34,197,94,0.35)",
+                boxSizing: "border-box",
+              }} />
+              <span>= High confidence</span>
             </div>
           </div>
         </div>
       )}
 
-      {/* Selected node card — two-tier progressive disclosure */}
+      {/* Selected node card */}
       {selectedNode && (
         <div style={{
           position: "absolute",
@@ -364,7 +361,6 @@ export default function GraphView({ graphData, connections, highlightedIds, sele
           overflowY: isMobile ? "auto" : "visible",
         }} className="fade-in">
 
-          {/* Tier 1 — always visible */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
             <div>
               <div style={{ fontWeight: 600, fontSize: 15, color: "var(--text-primary)" }}>{selectedNode.name}</div>
@@ -382,6 +378,32 @@ export default function GraphView({ graphData, connections, highlightedIds, sele
             <span className={`badge badge-${selectedNode.tieCategory}`}>
               {Math.round(selectedNode.tieStrength * 100)}% {selectedNode.tieCategory} tie
             </span>
+            <span className="badge" style={{ background: "rgba(108,75,244,0.08)", color: "var(--accent)" }}>
+              {selectedNode.roleCategory}
+            </span>
+            <span className="badge" style={{ background: "rgba(99,102,241,0.08)", color: "#6366f1" }}>
+              {selectedNode.industryCluster}
+            </span>
+            {selectedNode.isBridge && (
+              <span className="badge" style={{ background: "rgba(22,163,107,0.1)", color: "var(--strong)" }}>
+                bridge — rare cluster
+              </span>
+            )}
+            <span className="badge" style={{ background: "rgba(107,114,128,0.08)", color: "var(--text-muted)" }}>
+              {selectedNode.networkPosition}
+            </span>
+            {(() => {
+              const badge = getConfidenceBadgeStyle(selectedNode.confidenceLevel);
+              return (
+                <span className="badge" style={{ background: badge.background, color: badge.color }}>
+                  {badge.label}
+                </span>
+              );
+            })()}
+          </div>
+
+          <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 8, fontFamily: "var(--font-mono)" }}>
+            Based on: {buildDataSourceString(selectedNode)}
           </div>
 
           {onDraftMessage && (
@@ -406,80 +428,19 @@ export default function GraphView({ graphData, connections, highlightedIds, sele
             </button>
           )}
 
-          {/* Show/Hide details toggle */}
-          <button
-            onClick={() => setDetailsOpen(!detailsOpen)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 4,
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              fontSize: 12,
-              color: "var(--text-muted)",
-              fontFamily: "var(--font-mono)",
-              padding: "4px 0",
-              marginBottom: detailsOpen ? 10 : 0,
-            }}
-          >
-            <span>{detailsOpen ? "Hide details" : "Show details"}</span>
-            <ChevronDown
-              size={13}
-              style={{
-                transition: "transform 0.2s ease",
-                transform: detailsOpen ? "rotate(180deg)" : "rotate(0deg)",
-              }}
-            />
-          </button>
+          <NodeCoachCard
+            connection={selectedNode}
+            coachData={getNodeCoachData(selectedNode)}
+            onDraftMessage={onDraftMessage || (() => {})}
+            draftMessage={draftMessages?.get(selectedNode.id) ?? null}
+            isDrafting={draftingId === selectedNode.id}
+            onOpenSettings={onOpenSettings}
+          />
 
-          {/* Tier 2 — hidden by default */}
-          {detailsOpen && (
-            <div style={{ transition: "opacity 0.15s ease", opacity: 1 }}>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
-                <span className="badge" style={{ background: "rgba(108,75,244,0.08)", color: "var(--accent)" }}>
-                  {selectedNode.roleCategory}
-                </span>
-                <span className="badge" style={{ background: "rgba(99,102,241,0.08)", color: "#6366f1" }}>
-                  {selectedNode.industryCluster}
-                </span>
-                {selectedNode.isBridge && (
-                  <span className="badge" style={{ background: "rgba(22,163,107,0.1)", color: "var(--strong)" }}>
-                    bridge — rare cluster
-                  </span>
-                )}
-                <span className="badge" style={{ background: "rgba(107,114,128,0.08)", color: "var(--text-muted)" }}>
-                  {selectedNode.networkPosition}
-                </span>
-                {(() => {
-                  const badge = getConfidenceBadgeStyle(selectedNode.confidenceLevel);
-                  return (
-                    <span className="badge" style={{ background: badge.background, color: badge.color }}>
-                      {badge.label}
-                    </span>
-                  );
-                })()}
-              </div>
-
-              <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 8, fontFamily: "var(--font-mono)" }}>
-                Based on: {buildDataSourceString(selectedNode)}
-              </div>
-
-              <NodeCoachCard
-                connection={selectedNode}
-                coachData={getNodeCoachData(selectedNode)}
-                onDraftMessage={onDraftMessage || (() => {})}
-                draftMessage={draftMessages?.get(selectedNode.id) ?? null}
-                isDrafting={draftingId === selectedNode.id}
-                onOpenSettings={onOpenSettings}
-              />
-
-              <div style={{ marginTop: 10, fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
-                Connected {selectedNode.daysSinceConnected} days ago
-                {" · "}Priority score: {Math.round(selectedNode.activationPriority * 100)}%
-              </div>
-            </div>
-          )}
+          <div style={{ marginTop: 10, fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
+            Connected {selectedNode.daysSinceConnected} days ago
+            {" · "}Priority score: {Math.round(selectedNode.activationPriority * 100)}%
+          </div>
         </div>
       )}
 

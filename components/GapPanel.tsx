@@ -46,9 +46,6 @@ export default function GapPanel({ gapAnalysis, connections, onSwitchToSearch, e
   const lowConf = connections.filter(c => c.confidenceLevel === "low").length;
   const confTotal = highConf + medConf + lowConf;
 
-  const [clustersOpen, setClustersOpen] = useState(false);
-  const [insightsOpen, setInsightsOpen] = useState(false);
-  const [confidenceOpen, setConfidenceOpen] = useState(false);
 
   const highConfPct = confTotal > 0 ? Math.round((highConf / confTotal) * 100) : 0;
 
@@ -155,209 +152,142 @@ export default function GapPanel({ gapAnalysis, connections, onSwitchToSearch, e
           total={totalConnections} color="var(--text-muted)" note="May need re-activation" />
       </div>
 
-      {/* Confidence Distribution — collapsible */}
+      {/* Confidence Distribution */}
       <div style={{
         background: "var(--bg-panel)",
         border: "1px solid var(--border)",
         borderRadius: 10,
-        overflow: "hidden",
+        padding: "18px 20px",
       }}>
-        <button
-          onClick={() => setConfidenceOpen(!confidenceOpen)}
-          style={{
-            width: "100%",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "14px 18px",
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            fontFamily: "var(--font-mono)",
-            fontSize: 12,
-            color: "var(--text-muted)",
-            letterSpacing: "0.05em",
-            textTransform: "uppercase",
-          }}
-        >
-          <span>Confidence Distribution ({highConfPct}% high)</span>
-          <ChevronDown
-            size={14}
-            style={{
-              transition: "transform 0.2s ease",
-              transform: confidenceOpen ? "rotate(180deg)" : "rotate(0deg)",
-              flexShrink: 0,
-            }}
-          />
-        </button>
+        <div style={{
+          fontFamily: "var(--font-mono)",
+          fontSize: 12,
+          color: "var(--text-muted)",
+          letterSpacing: "0.05em",
+          textTransform: "uppercase",
+          marginBottom: 14,
+        }}>
+          Confidence Distribution ({highConfPct}% high)
+        </div>
 
-        {confidenceOpen && (
-          <div style={{ padding: "0 18px 16px 18px" }}>
-            {/* Stacked horizontal bar */}
-            <div style={{ display: "flex", height: 28, borderRadius: 6, overflow: "hidden", marginBottom: 10 }}>
-              {confTotal > 0 && (
-                <>
-                  {highConf > 0 && (
-                    <div style={{
-                      width: `${(highConf / confTotal) * 100}%`,
-                      background: "rgba(34,197,94,0.15)",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 500,
-                      color: "#22c55e",
-                      minWidth: highConf > 0 ? 32 : 0,
-                    }}>
-                      {Math.round((highConf / confTotal) * 100)}%
-                    </div>
-                  )}
-                  {medConf > 0 && (
-                    <div style={{
-                      width: `${(medConf / confTotal) * 100}%`,
-                      background: "rgba(217,150,10,0.15)",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 500,
-                      color: "var(--warning)",
-                      minWidth: medConf > 0 ? 32 : 0,
-                    }}>
-                      {Math.round((medConf / confTotal) * 100)}%
-                    </div>
-                  )}
-                  {lowConf > 0 && (
-                    <div style={{
-                      width: `${(lowConf / confTotal) * 100}%`,
-                      background: "rgba(255,255,255,0.06)",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 500,
-                      color: "var(--text-muted)",
-                      minWidth: lowConf > 0 ? 32 : 0,
-                    }}>
-                      {Math.round((lowConf / confTotal) * 100)}%
-                    </div>
-                  )}
-                </>
+        {/* Stacked horizontal bar */}
+        <div style={{ display: "flex", height: 28, borderRadius: 6, overflow: "hidden", marginBottom: 10 }}>
+          {confTotal > 0 && (
+            <>
+              {highConf > 0 && (
+                <div style={{
+                  width: `${(highConf / confTotal) * 100}%`,
+                  background: "rgba(34,197,94,0.15)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 500,
+                  color: "#22c55e",
+                  minWidth: highConf > 0 ? 32 : 0,
+                }}>
+                  {Math.round((highConf / confTotal) * 100)}%
+                </div>
               )}
-            </div>
+              {medConf > 0 && (
+                <div style={{
+                  width: `${(medConf / confTotal) * 100}%`,
+                  background: "rgba(217,150,10,0.15)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 500,
+                  color: "var(--warning)",
+                  minWidth: medConf > 0 ? 32 : 0,
+                }}>
+                  {Math.round((medConf / confTotal) * 100)}%
+                </div>
+              )}
+              {lowConf > 0 && (
+                <div style={{
+                  width: `${(lowConf / confTotal) * 100}%`,
+                  background: "rgba(255,255,255,0.06)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 500,
+                  color: "var(--text-muted)",
+                  minWidth: lowConf > 0 ? 32 : 0,
+                }}>
+                  {Math.round((lowConf / confTotal) * 100)}%
+                </div>
+              )}
+            </>
+          )}
+        </div>
 
-            {/* Labels */}
-            <div style={{ fontSize: 12, color: "var(--text-secondary)", fontFamily: "var(--font-mono)", lineHeight: 1.6 }}>
-              <span style={{ color: "#22c55e" }}>{highConf} High</span>
-              {" \u00B7 "}
-              <span style={{ color: "var(--warning)" }}>{medConf} Medium</span>
-              {" \u00B7 "}
-              <span style={{ color: "var(--text-muted)" }}>{lowConf} Low</span>
-            </div>
+        {/* Labels */}
+        <div style={{ fontSize: 12, color: "var(--text-secondary)", fontFamily: "var(--font-mono)", lineHeight: 1.6 }}>
+          <span style={{ color: "#22c55e" }}>{highConf} High</span>
+          {" \u00B7 "}
+          <span style={{ color: "var(--warning)" }}>{medConf} Medium</span>
+          {" \u00B7 "}
+          <span style={{ color: "var(--text-muted)" }}>{lowConf} Low</span>
+        </div>
 
-            <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 10, fontStyle: "italic", lineHeight: 1.4 }}>
-              Based on message interaction data and connection date
-            </div>
-          </div>
-        )}
+        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 10, fontStyle: "italic", lineHeight: 1.4 }}>
+          Based on message interaction data and connection date
+        </div>
       </div>
 
-      {/* Industry cluster distribution — collapsible */}
+      {/* Industry cluster distribution */}
       <div style={{
         background: "var(--bg-panel)",
         border: "1px solid var(--border)",
         borderRadius: 10,
-        overflow: "hidden",
+        padding: "18px 20px",
       }}>
-        <button
-          onClick={() => setClustersOpen(!clustersOpen)}
-          style={{
-            width: "100%",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "14px 18px",
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            fontFamily: "var(--font-mono)",
-            fontSize: 12,
-            color: "var(--text-muted)",
-            letterSpacing: "0.05em",
-            textTransform: "uppercase",
-          }}
-        >
-          <span>Industry Clusters ({clusterDistribution.length} detected)</span>
-          <ChevronDown
-            size={14}
-            style={{
-              transition: "transform 0.2s ease",
-              transform: clustersOpen ? "rotate(180deg)" : "rotate(0deg)",
-              flexShrink: 0,
-            }}
-          />
-        </button>
-
-        {clustersOpen && (
-          <div style={{ padding: "0 18px 16px 18px" }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {clusterDistribution.map(({ cluster, count, percentage }) => (
-                <ClusterRow
-                  key={cluster}
-                  cluster={cluster}
-                  color={CLUSTER_COLORS[cluster] || "#6b7280"}
-                  count={count}
-                  percentage={percentage}
-                />
-              ))}
-            </div>
-            <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 12, fontStyle: "italic", lineHeight: 1.4 }}>
-              Industry inferred from company name and position title. LinkedIn does not export an industry field.
-            </div>
-          </div>
-        )}
+        <div style={{
+          fontFamily: "var(--font-mono)",
+          fontSize: 12,
+          color: "var(--text-muted)",
+          letterSpacing: "0.05em",
+          textTransform: "uppercase",
+          marginBottom: 14,
+        }}>
+          Industry Clusters ({clusterDistribution.length} detected)
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {clusterDistribution.map(({ cluster, count, percentage }) => (
+            <ClusterRow
+              key={cluster}
+              cluster={cluster}
+              color={CLUSTER_COLORS[cluster] || "#6b7280"}
+              count={count}
+              percentage={percentage}
+            />
+          ))}
+        </div>
+        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 12, fontStyle: "italic", lineHeight: 1.4 }}>
+          Industry inferred from company name and position title. LinkedIn does not export an industry field.
+        </div>
       </div>
 
       {/* Role distribution collapsed — secondary to industry clusters */}
 
-      {/* Network insights — collapsible */}
+      {/* Network insights */}
       {insights.length > 0 && (
         <div style={{
           background: "var(--bg-panel)",
           border: "1px solid var(--border)",
           borderRadius: 10,
-          overflow: "hidden",
+          padding: "18px 20px",
         }}>
-          <button
-            onClick={() => setInsightsOpen(!insightsOpen)}
-            style={{
-              width: "100%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "14px 18px",
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              fontFamily: "var(--font-mono)",
-              fontSize: 12,
-              color: "var(--text-muted)",
-              letterSpacing: "0.05em",
-              textTransform: "uppercase",
-            }}
-          >
-            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <Info size={12} />
-              Network Insights ({insights.length} insights)
-            </span>
-            <ChevronDown
-              size={14}
-              style={{
-                transition: "transform 0.2s ease",
-                transform: insightsOpen ? "rotate(180deg)" : "rotate(0deg)",
-                flexShrink: 0,
-              }}
-            />
-          </button>
-
-          {insightsOpen && (
-            <div style={{ padding: "0 18px 16px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
-              {insights.map((insight, i) => (
-                <InsightCard key={insight.type} insight={insight} rank={i + 1} />
-              ))}
-            </div>
-          )}
+          <div style={{
+            display: "flex", alignItems: "center", gap: 6,
+            fontFamily: "var(--font-mono)",
+            fontSize: 12,
+            color: "var(--text-muted)",
+            letterSpacing: "0.05em",
+            textTransform: "uppercase",
+            marginBottom: 14,
+          }}>
+            <Info size={12} />
+            Network Insights ({insights.length} insights)
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {insights.map((insight, i) => (
+              <InsightCard key={insight.type} insight={insight} rank={i + 1} />
+            ))}
+          </div>
         </div>
       )}
 
