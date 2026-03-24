@@ -7,11 +7,11 @@
 
 
 
-https://github.com/user-attachments/assets/5f607cf1-63ec-428b-9523-978420da0298
+https://github.com/user-attachments/assets/5951d14b-495e-47dc-9280-7d5da9e29da4
 
 
+<img width="1306" height="854" alt="map" src="https://github.com/user-attachments/assets/5ea217f7-6e61-425f-91e4-78187f630f3c" />
 
-![Navox Network](./public/navox-network.png)
 
 🔗 **<a href="https://navox.tech/network" target="_blank">Live Demo →</a>**
 
