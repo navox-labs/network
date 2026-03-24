@@ -230,7 +230,7 @@ This tool implements findings from:
 - Putnam, R. D. (2000). *Bowling Alone*. Simon & Schuster.
 - Ryan, L. (2011). Migrants' social networks and weak ties. *The Sociological Review*, 59(4), 707–724.
 
-Full citation list in the companion research paper: [The Invisible Network (Yousif, 2026)](../invisible_network.pdf)
+Full citation list in the companion research paper: [The Invisible Network (Yousif, 2026)](./invisible_network.pdf)
 
 ---
 
