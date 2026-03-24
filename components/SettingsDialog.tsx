@@ -245,8 +245,18 @@ export default function SettingsDialog({ isOpen, onClose }: Props) {
           </div>
         )}
 
+        {/* ProductHunt badges */}
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center", padding: "16px 0 8px", borderTop: "1px solid var(--border)", marginTop: 16 }}>
+          <a href="https://www.producthunt.com/products/navox-network?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-navox-network" target="_blank" rel="noopener noreferrer">
+            <img alt="Navox Network on Product Hunt" width={200} height={43} src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1101940&theme=dark" style={{ display: "block" }} />
+          </a>
+          <a href="https://www.producthunt.com/products/navox-network/reviews/new?utm_source=badge-product_review&utm_medium=badge&utm_campaign=badge-navox-network" target="_blank" rel="noopener noreferrer">
+            <img alt="Review Navox Network on Product Hunt" width={200} height={43} src="https://api.producthunt.com/widgets/embed-image/v1/product_review.svg?product_id=1101940&theme=dark" style={{ display: "block" }} />
+          </a>
+        </div>
+
         {/* Bottom spacing */}
-        <div style={{ padding: "0 16px 16px" }} />
+        <div style={{ padding: "0 16px 8px" }} />
       </div>
     </>
   );
