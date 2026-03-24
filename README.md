@@ -31,7 +31,7 @@ Navox Network makes it visible.
 
 ## What it does
 
-Upload your LinkedIn connections CSV. No login. No server. No data leaves your browser.
+Upload your LinkedIn data export. No login. No server. No data leaves your browser.
 
 | View | What it answers |
 |---|---|
@@ -46,13 +46,15 @@ Upload your LinkedIn connections CSV. No login. No server. No data leaves your b
 
 ## How to get your LinkedIn data
 
-1. LinkedIn → **Settings → Data Privacy**
+1. Go to LinkedIn **Settings → Data Privacy**
 2. Click **"Get a copy of your data"**
-3. Select **Connections** only
-4. Request archive → download when ready (up to 24h)
-5. Upload `Connections.csv` to the tool
+3. Select **Basic** export (ready in ~10 minutes)
+4. Download the zip when LinkedIn emails you
+5. Drop the zip, folder, or any individual CSV files into the tool — we handle the rest
 
-Your data is parsed entirely in your browser using [PapaParse](https://www.papaparse.com/). Nothing is sent to any server.
+The app accepts a `.zip` file, an unzipped folder, or individual CSVs. `Connections.csv` is the only required file — additional files (messages, endorsements, recommendations, invitations) are used automatically when present to enrich tie strength scoring.
+
+Your data is parsed entirely in your browser using [PapaParse](https://www.papaparse.com/) and [JSZip](https://stuk.github.io/jszip/). Nothing is sent to any server.
 
 ---
 
@@ -65,7 +67,7 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000/network](http://localhost:3000/network) and upload your CSV.
+Open [http://localhost:3000/network](http://localhost:3000/network) and upload your LinkedIn data export.
 
 **Requirements:** Node.js 18+
 
@@ -92,13 +94,24 @@ Bonding capital (strong ties within a homogeneous group) provides support. Bridg
 
 The previous model (recency-only) scored connections by how recently you connected. This is **backwards** relative to weak-ties theory — a connection from yesterday is likely a stranger; a connection from 3 years ago is an established relationship.
 
-### New model — three components:
+### Current model — three components:
 
 | Component | Weight | Logic |
 |---|---|---|
 | Relationship depth | 40% | Duration of connection, peaks at ~2 years |
-| Bridging potential | 35% | Role category — Recruiters, Leadership, Founders rank highest |
+| Bridging potential | 35% | Industry cluster analysis — connections in rare clusters score highest |
 | Recency signal | 25% | Active connection within last 6 months |
+
+Bridging potential is computed using **industry cluster analysis**. Each connection is classified into one of 11 clusters: Tech, Finance, Healthcare, Education, Government, Legal, Media/Marketing, Manufacturing, Consulting, Nonprofit, or Other. Connections in clusters with frequency ≤3 in your network are classified as **structural bridges** per Granovetter — they span otherwise disconnected groups.
+
+### Network position classification:
+
+| Position | Meaning |
+|---|---|
+| **Bridge** | Occupies a rare cluster (frequency ≤3), spans structural holes |
+| **Anchor** | Strong tie in a well-represented cluster |
+| **Explorer** | Weak tie in a well-represented cluster |
+| **Dormant** | Needs re-activation before outreach |
 
 ### Tie categories:
 
@@ -111,7 +124,7 @@ The previous model (recency-only) scored connections by how recently you connect
 
 ### Activation priority
 
-Weak ties in bridge roles (Recruiters, Leadership, Founders, Advisors) rank **highest** in the outreach queue — not strong ties. Strong ties are already activated. Weak bridge ties are where the undiscovered opportunity lives.
+Weak ties in bridge positions rank **highest** in the outreach queue — not strong ties. Strong ties are already activated. Weak bridge ties spanning rare industry clusters are where the undiscovered opportunity lives.
 
 ---
 
@@ -122,11 +135,54 @@ Weak ties in bridge roles (Recruiters, Leadership, Founders, Advisors) rank **hi
 | Framework | Next.js 14 (App Router) |
 | Graph | react-force-graph-2d (canvas, handles 1000+ nodes) |
 | CSV parsing | PapaParse (runs in-browser) |
+| Zip extraction | JSZip (runs in-browser) |
 | Language | TypeScript throughout |
 | Styling | CSS variables + Tailwind utilities |
 | Backend | None |
 | Database | None |
 | Auth | None |
+
+The app ingests a full LinkedIn data export (zip or folder) and automatically detects enrichment files (messages, endorsements, recommendations, invitations) to improve tie strength accuracy beyond what `Connections.csv` alone provides.
+
+---
+
+## Enrichment data
+
+When you upload a full LinkedIn data export, the app uses these files to build a more accurate tie strength model:
+
+| File | Purpose |
+|---|---|
+| `Connections.csv` | **Required.** Core network map — names, companies, positions, connection dates |
+| `messages.csv` | Interaction intensity and bidirectional message detection |
+| `Endorsement_Received_Info.csv` | Relationship depth signal — skills endorsed by connections |
+| `Endorsement_Given_Info.csv` | Relationship depth signal — skills you endorsed |
+| `Recommendations_Received.csv` | Strongest tie confirmation |
+| `Invitations.csv` | Who initiated the relationship |
+
+Enrichment produces a 3-tier confidence score per connection:
+
+| Confidence | Meaning |
+|---|---|
+| **HIGH** | Bidirectional messages detected — confirmed active relationship |
+| **MEDIUM** | Partial enrichment (endorsements, recommendations, or invitations present) |
+| **LOW** | `Connections.csv` data only — tie strength is estimated from metadata |
+
+---
+
+## Multi-provider AI
+
+The app supports optional AI features powered by OpenAI or Anthropic.
+
+- **Draft Message** — generates personalized outreach calibrated to tie strength, network position, and shared context
+- **Ask Coach** — provides contextual network coaching based on your graph analysis
+
+Configuration:
+
+- Add your API key in Settings — the provider is auto-detected from the key prefix (`sk-` for OpenAI, `sk-ant-` for Anthropic)
+- Keys are stored in your browser only and auto-expire after 30 days
+- Connection data sent to the AI provider is disclosed in Settings — review before enabling
+
+No API key is required to use the core network analysis features.
 
 ---
 
