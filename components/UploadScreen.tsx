@@ -294,6 +294,16 @@ export default function UploadScreen({ onFiles, isLoading, error, parsingStage }
         ))}
       </div>
 
+      {/* ProductHunt badges */}
+      <div style={{ display: "flex", gap: 16, flexWrap: "wrap", justifyContent: "center", margin: "16px 0" }}>
+        <a href="https://www.producthunt.com/products/navox-network?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-navox-network" target="_blank" rel="noopener noreferrer">
+          <img alt="Navox Network on Product Hunt" width={250} height={54} src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1101940&theme=light" />
+        </a>
+        <a href="https://www.producthunt.com/products/navox-network/reviews/new?utm_source=badge-product_review&utm_medium=badge&utm_campaign=badge-navox-network" target="_blank" rel="noopener noreferrer">
+          <img alt="Review Navox Network on Product Hunt" width={250} height={54} src="https://api.producthunt.com/widgets/embed-image/v1/product_review.svg?product_id=1101940&theme=light" />
+        </a>
+      </div>
+
       {/* Privacy note */}
       <div style={{
         display: "flex", alignItems: "center", gap: 8,
