@@ -1,15 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { Zap, Copy, CheckCircle, ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
+import { Zap, Copy, CheckCircle, ExternalLink, ChevronDown, ChevronUp, Mic, FileText } from "lucide-react";
 import type { Connection, GapAnalysis } from "@/lib/tieStrength";
+import type { ConnectionStatus } from "@/lib/types";
 import { getWeeklyPlan } from "@/lib/coachInsights";
 import { WeeklyPlanCard } from "@/components/CoachCard";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import StatusPill from "@/components/StatusPill";
+import NotesPanel from "@/components/NotesPanel";
 
 interface Props {
   connections: Connection[];
   gapAnalysis: GapAnalysis;
+  onStatusChange?: (connectionId: string, status: ConnectionStatus) => void;
+  onNotesChange?: (connectionId: string, notes: string) => void;
 }
 
 const MESSAGE_TEMPLATES: Record<string, (conn: Connection, userName?: string) => string> = {
@@ -21,12 +26,13 @@ const MESSAGE_TEMPLATES: Record<string, (conn: Connection, userName?: string) =>
     `Hey ${c.firstName},\n\nQuick question — I'm actively exploring [target role] opportunities, particularly at [target companies]. Given your network at ${c.company || "in the space"}, would you know anyone worth talking to?\n\nHappy to return the favour anytime. Let me know what you think.\n\n[Your name]`,
 };
 
-export default function OutreachQueue({ connections, gapAnalysis }: Props) {
+export default function OutreachQueue({ connections, gapAnalysis, onStatusChange, onNotesChange }: Props) {
   const isMobile = useIsMobile();
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
   const [weekFilter, setWeekFilter] = useState<1 | 2>(1);
+  const [notesExpandedId, setNotesExpandedId] = useState<string | null>(null);
 
   const queue = gapAnalysis.topActivationTargets.slice(0, weekFilter === 1 ? 8 : 15);
 
@@ -146,7 +152,11 @@ export default function OutreachQueue({ connections, gapAnalysis }: Props) {
                   </div>
                   <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 1 }}>{conn.position}</div>
                   <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 8 }}>{conn.company}</div>
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                    <StatusPill
+                      status={conn.status}
+                      onChange={(s) => onStatusChange?.(conn.id, s)}
+                    />
                     <span className={`badge badge-${conn.tieCategory}`}>
                       {conn.tieCategory} tie
                     </span>
@@ -161,7 +171,92 @@ export default function OutreachQueue({ connections, gapAnalysis }: Props) {
                     <span className="badge" style={{ background: "rgba(107,114,128,0.08)", color: "var(--text-muted)" }}>
                       {conn.networkPosition}
                     </span>
+                    {conn.outreachVoice && (
+                      <span
+                        title="Custom voice sample set"
+                        style={{ display: "inline-flex", alignItems: "center", color: "var(--accent)", opacity: 0.7 }}
+                      >
+                        <Mic size={12} />
+                      </span>
+                    )}
                   </div>
+
+                  {/* Notes preview */}
+                  {conn.notes && notesExpandedId !== conn.id && (
+                    <button
+                      onClick={() => setNotesExpandedId(conn.id)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 4,
+                        marginTop: 6,
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: 0,
+                        maxWidth: "100%",
+                      }}
+                      data-testid={`notes-preview-${conn.id}`}
+                    >
+                      <FileText size={11} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
+                      <span style={{
+                        fontSize: 11,
+                        color: "var(--text-muted)",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        textAlign: "left",
+                      }}>
+                        {conn.notes}
+                      </span>
+                    </button>
+                  )}
+                  {notesExpandedId === conn.id && (
+                    <div style={{ marginTop: 8 }}>
+                      <NotesPanel
+                        notes={conn.notes || ""}
+                        onChange={(n) => onNotesChange?.(conn.id, n)}
+                      />
+                      <button
+                        onClick={() => setNotesExpandedId(null)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "var(--text-muted)",
+                          fontSize: 11,
+                          cursor: "pointer",
+                          marginTop: 4,
+                          fontFamily: "var(--font-mono)",
+                          padding: 0,
+                        }}
+                      >
+                        Collapse notes
+                      </button>
+                    </div>
+                  )}
+                  {!conn.notes && notesExpandedId !== conn.id && (
+                    <button
+                      onClick={() => setNotesExpandedId(conn.id)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 4,
+                        marginTop: 6,
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: 0,
+                        fontSize: 11,
+                        color: "var(--text-muted)",
+                        opacity: 0.5,
+                        fontFamily: "var(--font-mono)",
+                      }}
+                      data-testid={`add-notes-${conn.id}`}
+                    >
+                      <FileText size={11} />
+                      Add notes
+                    </button>
+                  )}
                 </div>
 
                 {/* Actions — all 4 buttons always visible */}

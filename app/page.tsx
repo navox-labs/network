@@ -83,39 +83,77 @@ export default function Home() {
   const systemPromptRef = useRef("");
   const draftAbortRef = useRef<AbortController | null>(null);
 
-  // Load from localStorage — handles both v1 and v2 schemas
+  // Load from IndexedDB (with localStorage migration fallback)
   useEffect(() => {
     try {
       const dismissed = localStorage.getItem("navox-enrich-banner-dismissed");
       if (dismissed === "true") setBannerDismissed(true);
     } catch {}
 
-    try {
-      const raw = localStorage.getItem("navox-network-data");
-      if (!raw) return;
-      const stored = JSON.parse(raw);
-      if (!stored.connections?.length) return;
+    const loadData = async () => {
+      try {
+        // Try migrating from localStorage first (one-time)
+        const { migrateFromLocalStorage } = await import("@/lib/migration");
+        const migrated = await migrateFromLocalStorage();
 
-      const conns: Connection[] = stored.connections;
-      const graph = buildGraphData(conns);
-      const gaps = stored.gapAnalysis as GapAnalysis;
+        // Load from IndexedDB (either migrated or pre-existing)
+        const { loadFullState } = await import("@/lib/localDB");
+        const state = migrated || await loadFullState();
 
-      setConnections(conns);
-      setGraphData(graph);
-      setGapAnalysis(gaps);
-      setCsvMeta({
-        filename: stored.displayFilename || "LinkedIn Export",
-        generatedAt: new Date(stored.uploadedAt).toLocaleDateString("en-CA"),
-      });
+        if (!state || !state.connections.length) {
+          // Fallback: try legacy localStorage if IndexedDB is empty
+          try {
+            const raw = localStorage.getItem("navox-network-data");
+            if (!raw) return;
+            const stored = JSON.parse(raw);
+            if (!stored.connections?.length) return;
 
-      // v2 enrichment data
-      if (stored.schemaVersion === 2 && stored.enrichment) {
-        setEnrichmentSummary(stored.enrichment as EnrichmentSummary);
+            const conns: Connection[] = stored.connections;
+            const graph = buildGraphData(conns);
+            const gaps = stored.gapAnalysis as GapAnalysis;
+
+            setConnections(conns);
+            setGraphData(graph);
+            setGapAnalysis(gaps);
+            setCsvMeta({
+              filename: stored.displayFilename || "LinkedIn Export",
+              generatedAt: new Date(stored.uploadedAt).toLocaleDateString("en-CA"),
+            });
+
+            if (stored.enrichment) {
+              setEnrichmentSummary(stored.enrichment as EnrichmentSummary);
+            }
+
+            const ctx = buildAgentContext(conns, gaps);
+            systemPromptRef.current = buildSystemPrompt(ctx);
+          } catch {}
+          return;
+        }
+
+        const conns = state.connections;
+        const graph = buildGraphData(conns);
+        const gaps = state.gapAnalysis;
+
+        setConnections(conns);
+        setGraphData(graph);
+        setGapAnalysis(gaps);
+        setCsvMeta({
+          filename: state.displayFilename || "LinkedIn Export",
+          generatedAt: new Date(state.uploadedAt).toLocaleDateString("en-CA"),
+        });
+
+        if (state.enrichment) {
+          setEnrichmentSummary(state.enrichment as EnrichmentSummary);
+        }
+
+        const ctx = buildAgentContext(conns, gaps);
+        systemPromptRef.current = buildSystemPrompt(ctx);
+      } catch (e) {
+        console.warn("Failed to load from IndexedDB:", e);
       }
+    };
 
-      const ctx = buildAgentContext(conns, gaps);
-      systemPromptRef.current = buildSystemPrompt(ctx);
-    } catch {}
+    loadData();
 
     // Listen for banner dismiss event from EnrichBanner
     const handleDismiss = () => setBannerDismissed(true);
@@ -320,24 +358,20 @@ export default function Home() {
         generatedAt: new Date().toLocaleDateString("en-CA"),
       });
 
-      // Step 7: Save to localStorage (v2 schema) — isolated try/catch
-      // so a QuotaExceededError doesn't mask the successful parse
+      // Step 7: Save to IndexedDB — isolated try/catch
+      // so a storage error doesn't mask the successful parse
       try {
-        const storagePayload: Record<string, unknown> = {
-          schemaVersion: 2,
+        const { saveFullState } = await import("@/lib/localDB");
+        await saveFullState({
+          schemaVersion: 3,
           connections: parsed,
           gapAnalysis: gaps,
           uploadedAt: new Date().toISOString(),
           displayFilename,
-        };
-        if (enrichment) {
-          storagePayload.enrichment = enrichment;
-        }
-        localStorage.setItem("navox-network-data", JSON.stringify(storagePayload));
+          enrichment: enrichment || undefined,
+        });
       } catch {
-        // Storage full — data is loaded in memory but won't persist across refresh.
-        // This is acceptable; user can still use the app this session.
-        console.warn("localStorage quota exceeded — data will not persist across refresh.");
+        console.warn("IndexedDB save failed — data will not persist across refresh.");
       }
 
       // Step 8: Build system prompt
@@ -352,7 +386,7 @@ export default function Home() {
     }
   }, []);
 
-  const handleReset = () => {
+  const handleReset = async () => {
     setConnections([]);
     setGraphData(null);
     setGapAnalysis(null);
@@ -366,6 +400,10 @@ export default function Home() {
     setBannerDismissed(false);
     localStorage.removeItem("navox-network-data");
     localStorage.removeItem("navox-enrich-banner-dismissed");
+    try {
+      const { clearAllData } = await import("@/lib/localDB");
+      await clearAllData();
+    } catch {}
   };
 
   // Handle enrichment file drops from EnrichBanner
@@ -450,18 +488,19 @@ export default function Home() {
       setGapAnalysis(gaps);
       setEnrichmentSummary(enrichment);
 
-      // Save to localStorage
+      // Save to IndexedDB
       try {
-        const storagePayload: Record<string, unknown> = {
-          schemaVersion: 2,
+        const { saveFullState } = await import("@/lib/localDB");
+        await saveFullState({
+          schemaVersion: 3,
           connections: updatedConns,
           gapAnalysis: gaps,
           uploadedAt: new Date().toISOString(),
+          displayFilename: csvMeta?.filename || "LinkedIn Export",
           enrichment,
-        };
-        localStorage.setItem("navox-network-data", JSON.stringify(storagePayload));
+        });
       } catch {
-        console.warn("localStorage quota exceeded — data will not persist across refresh.");
+        console.warn("IndexedDB save failed — data will not persist across refresh.");
       }
 
       // Rebuild system prompt

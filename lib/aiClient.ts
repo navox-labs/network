@@ -73,7 +73,7 @@ export function clearAIConfig(): void {
   localStorage.removeItem(STORAGE_KEY);
 }
 
-interface ChatMessage {
+export interface ChatMessage {
   role: string;
   content: string;
 }
@@ -92,6 +92,85 @@ export async function* streamAIResponse(
     yield* streamOpenAI(config.apiKey, messages, systemPrompt, signal);
   } else {
     yield* streamAnthropic(config.apiKey, messages, systemPrompt, signal);
+  }
+}
+
+/**
+ * Stream AI responses via the Navox server-side proxy.
+ * Used by licensed users — Navox's API key is used server-side.
+ * No user API key is needed.
+ */
+export async function* proxyStreamAIResponse(
+  licenseKey: string,
+  messages: ChatMessage[],
+  systemPrompt: string,
+  endpoint: "draft" | "coach",
+  signal?: AbortSignal
+): AsyncGenerator<string> {
+  const response = await fetch(`/network/api/ai/${endpoint}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-license-key": licenseKey,
+    },
+    body: JSON.stringify({ messages, systemPrompt }),
+    signal,
+  });
+
+  if (!response.ok) {
+    const err = await response
+      .json()
+      .catch(() => ({ error: "Unknown error" }));
+    throw new Error(err.error || `Proxy error: ${response.status}`);
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("No response stream");
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || !trimmed.startsWith("data:")) continue;
+      const data = trimmed.slice(5).trim();
+      if (data === "[DONE]") return;
+
+      try {
+        const parsed = JSON.parse(data);
+        if (parsed.type === "content_block_delta" && parsed.delta?.text) {
+          yield parsed.delta.text;
+        }
+      } catch {
+        // Skip malformed JSON lines
+      }
+    }
+  }
+
+  // Process remaining buffer
+  if (buffer.trim()) {
+    const trimmed = buffer.trim();
+    if (trimmed.startsWith("data:")) {
+      const data = trimmed.slice(5).trim();
+      if (data !== "[DONE]") {
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.type === "content_block_delta" && parsed.delta?.text) {
+            yield parsed.delta.text;
+          }
+        } catch {
+          // Skip
+        }
+      }
+    }
   }
 }
 

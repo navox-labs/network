@@ -17,6 +17,102 @@
 
 import JSZip from "jszip";
 
+// ── Generic CSV header detection ──────────────────────────────────────────
+
+/** LinkedIn-specific headers that distinguish a LinkedIn export from a generic CSV */
+const LINKEDIN_HEADERS = ["connected on", "url"];
+
+/**
+ * Canonical header mapping: maps common header variants to the canonical
+ * names used internally (matching LinkedIn's format for consistency).
+ */
+const GENERIC_HEADER_MAP: Record<string, string> = {
+  // First name variants
+  "first name": "First Name",
+  "firstname": "First Name",
+  "first_name": "First Name",
+  "given name": "First Name",
+  "givenname": "First Name",
+  "given_name": "First Name",
+  // Last name variants
+  "last name": "Last Name",
+  "lastname": "Last Name",
+  "last_name": "Last Name",
+  "surname": "Last Name",
+  "family name": "Last Name",
+  "familyname": "Last Name",
+  "family_name": "Last Name",
+  // Email variants
+  "email": "Email Address",
+  "email address": "Email Address",
+  "e-mail": "Email Address",
+  "email_address": "Email Address",
+  "emailaddress": "Email Address",
+  "e-mail address": "Email Address",
+  // Company variants
+  "company": "Company",
+  "organization": "Company",
+  "org": "Company",
+  "employer": "Company",
+  "company name": "Company",
+  "company_name": "Company",
+  "organisation": "Company",
+  // Position variants
+  "position": "Position",
+  "title": "Position",
+  "job title": "Position",
+  "job_title": "Position",
+  "jobtitle": "Position",
+  "role": "Position",
+};
+
+/** Canonical names that count as "recognizable contact columns" */
+const CONTACT_COLUMNS = new Set(["First Name", "Last Name", "Email Address", "Company", "Position"]);
+
+/**
+ * Returns true if the CSV headers indicate a generic (non-LinkedIn) contact CSV.
+ * A CSV is "generic" if it has recognizable contact columns but is NOT a LinkedIn export.
+ * Requires at least 2 recognizable contact columns to qualify.
+ */
+export function isGenericCSV(headers: string[]): boolean {
+  const lowerHeaders = headers.map((h) => h.toLowerCase().trim());
+
+  // If it has LinkedIn-specific headers, it's not generic
+  const hasLinkedInHeaders = LINKEDIN_HEADERS.some((lh) =>
+    lowerHeaders.includes(lh)
+  );
+  if (hasLinkedInHeaders) return false;
+
+  // Count recognizable contact columns
+  const recognized = new Set<string>();
+  for (const h of lowerHeaders) {
+    const canonical = GENERIC_HEADER_MAP[h];
+    if (canonical && CONTACT_COLUMNS.has(canonical)) {
+      recognized.add(canonical);
+    }
+  }
+
+  return recognized.size >= 2;
+}
+
+/**
+ * Maps incoming CSV headers to canonical column names.
+ * Returns a Record mapping each recognized header (original) to its canonical name.
+ * Unrecognized headers are not included in the result.
+ */
+export function normalizeGenericCSVHeaders(headers: string[]): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const h of headers) {
+    const canonical = GENERIC_HEADER_MAP[h.toLowerCase().trim()];
+    if (canonical) {
+      result[h] = canonical;
+    }
+  }
+  return result;
+}
+
+// ── LinkedIn recognized files ─────────────────────────────────────────────
+
 const RECOGNIZED_FILES: string[] = [
   "connections.csv",
   "messages.csv",

@@ -3,8 +3,10 @@
 import { useRef, useState, useCallback } from "react";
 import { Upload, Network, FileText, Shield } from "lucide-react";
 
+export type SourceType = "linkedin" | "generic";
+
 interface Props {
-  onFiles: (files: File[]) => void;
+  onFiles: (files: File[], sourceType: SourceType) => void;
   isLoading: boolean;
   error: string | null;
   parsingStage?: string | null;
@@ -60,6 +62,7 @@ export default function UploadScreen({ onFiles, isLoading, error, parsingStage }
   const inputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [sourceType, setSourceType] = useState<SourceType>("linkedin");
 
   const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
@@ -80,21 +83,21 @@ export default function UploadScreen({ onFiles, isLoading, error, parsingStage }
     if (hasDirectory && entries.length > 0) {
       // Recursively read directory contents
       const files = await readEntriesRecursively(entries);
-      if (files.length > 0) onFiles(files);
+      if (files.length > 0) onFiles(files, sourceType);
     } else if (entries.length > 0) {
       // Has entries but no directories — read files from entries
       const files = await readEntriesRecursively(entries);
-      if (files.length > 0) onFiles(files);
+      if (files.length > 0) onFiles(files, sourceType);
     } else {
       // Fallback: webkitGetAsEntry not available
       const files = Array.from(e.dataTransfer.files);
-      if (files.length > 0) onFiles(files);
+      if (files.length > 0) onFiles(files, sourceType);
     }
-  }, [onFiles]);
+  }, [onFiles, sourceType]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (files && files.length > 0) onFiles(Array.from(files));
+    if (files && files.length > 0) onFiles(Array.from(files), sourceType);
     // Reset input so same file can be re-selected
     e.target.value = "";
   };
@@ -146,10 +149,46 @@ export default function UploadScreen({ onFiles, isLoading, error, parsingStage }
           fontSize: 15,
           lineHeight: 1.6,
         }}>
-          Upload your LinkedIn data export to visualize your network graph,
-          identify gaps in your bridging capital, and find your side door
-          into target companies.
+          {sourceType === "linkedin"
+            ? "Upload your LinkedIn data export to visualize your network graph, identify gaps in your bridging capital, and find your side door into target companies."
+            : "Upload a generic contacts CSV with columns like first name, last name, email, company, and position."}
         </p>
+
+        {/* Source type selector */}
+        <div style={{
+          display: "inline-flex",
+          gap: 0,
+          marginTop: 16,
+          background: "var(--bg-panel)",
+          border: "1px solid var(--border)",
+          borderRadius: 8,
+          overflow: "hidden",
+        }}>
+          {([
+            { id: "linkedin" as SourceType, label: "LinkedIn CSV" },
+            { id: "generic" as SourceType, label: "Generic CSV" },
+          ]).map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => setSourceType(opt.id)}
+              style={{
+                padding: "6px 16px",
+                fontSize: 12,
+                fontFamily: "var(--font-mono)",
+                letterSpacing: "0.03em",
+                cursor: "pointer",
+                border: "none",
+                background: sourceType === opt.id ? "var(--accent)" : "transparent",
+                color: sourceType === opt.id ? "#fff" : "var(--text-muted)",
+                fontWeight: sourceType === opt.id ? 600 : 400,
+                transition: "all 0.15s",
+              }}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Upload zone */}
@@ -212,7 +251,9 @@ export default function UploadScreen({ onFiles, isLoading, error, parsingStage }
               <Upload size={22} color="var(--text-secondary)" />
             </div>
             <p style={{ color: "var(--text-primary)", fontSize: 15, fontWeight: 500, marginBottom: 6 }}>
-              Drop your LinkedIn zip, folder, or files here
+              {sourceType === "linkedin"
+                ? "Drop your LinkedIn zip, folder, or files here"
+                : "Drop your contacts CSV file here"}
             </p>
             <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 10 }}>
               <button
@@ -270,15 +311,23 @@ export default function UploadScreen({ onFiles, isLoading, error, parsingStage }
           textTransform: "uppercase",
         }}>
           <FileText size={12} />
-          HOW TO EXPORT FROM LINKEDIN
+          {sourceType === "linkedin" ? "HOW TO EXPORT FROM LINKEDIN" : "GENERIC CSV FORMAT"}
         </div>
-        {[
-          "Go to LinkedIn Settings → Data Privacy",
-          'Click "Get a copy of your data"',
-          "Select Basic export (ready in 10 minutes)",
-          "Download the zip when LinkedIn emails you",
-          "Drop the zip, folder, or any files here — we handle the rest",
-        ].map((step, i) => (
+        {(sourceType === "linkedin"
+          ? [
+              "Go to LinkedIn Settings → Data Privacy",
+              'Click "Get a copy of your data"',
+              "Select Basic export (ready in 10 minutes)",
+              "Download the zip when LinkedIn emails you",
+              "Drop the zip, folder, or any files here — we handle the rest",
+            ]
+          : [
+              'Include columns: "First Name", "Last Name", "Email", "Company", "Position"',
+              "Header names are flexible — we recognize common variants",
+              "At least 2 contact columns (e.g., name + email) are required",
+              "Save as .csv (UTF-8) and drop it above",
+            ]
+        ).map((step, i) => (
           <div key={i} style={{
             display: "flex", gap: 12, marginBottom: 8,
             color: "var(--text-secondary)", fontSize: 13,

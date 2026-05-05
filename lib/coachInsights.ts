@@ -1,5 +1,6 @@
 import type { Connection, GapAnalysis, NetworkInsight } from "./tieStrength";
 import type { ActivePanel } from "@/app/page";
+import type { OutreachVoice } from "./types";
 
 // ── Bar Insight ────────────────────────────────────────────────────────────
 // One-line contextual coaching text + action for the CoachBar
@@ -190,8 +191,8 @@ export function getWeeklyPlan(gapAnalysis: GapAnalysis): WeeklyTarget[] {
 
 // ── Draft Message Prompt ───────────────────────────────────────────────────
 
-export function getDraftPrompt(conn: Connection): string {
-  return `Write a short, professional outreach message to ${conn.name}.
+export function getDraftPrompt(conn: Connection, voice?: OutreachVoice): string {
+  let prompt = `Write a short, professional outreach message to ${conn.name}.
 
 About them:
 - Position: ${conn.position} at ${conn.company}
@@ -206,7 +207,20 @@ Tone calibration:
 ${conn.tieCategory === "weak" ? "- This is a weak tie. Reference shared context, be specific about why you're reaching out, keep it brief and respectful of their time." : ""}
 ${conn.tieCategory === "moderate" ? "- This is a moderate tie. Warm reconnection tone, reference your connection, ask about their work before making any request." : ""}
 ${conn.tieCategory === "strong" ? "- This is a strong tie. Direct and friendly. You can ask directly for an intro or referral." : ""}
-${conn.tieCategory === "dormant" ? "- This is a dormant connection. Lead with genuine value (share an article, insight, congratulations), don't ask for anything in the first message." : ""}
+${conn.tieCategory === "dormant" ? "- This is a dormant connection. Lead with genuine value (share an article, insight, congratulations), don't ask for anything in the first message." : ""}`;
+
+  if (voice?.sample) {
+    prompt += `
+
+VOICE STYLE: Match the tone, vocabulary, and sentence structure of this writing sample:
+"${voice.sample}"`;
+    if (voice.additionalNotes) {
+      prompt += `
+Additional instructions: ${voice.additionalNotes}`;
+    }
+  }
+
+  prompt += `
 
 Rules:
 - Write ONLY the message body, no subject line
@@ -215,4 +229,6 @@ Rules:
 - Include [bracketed placeholders] for details the user needs to fill in (their role, target companies, etc.)
 - Don't be generic — make it specific to their company and role
 - No emojis`;
+
+  return prompt;
 }

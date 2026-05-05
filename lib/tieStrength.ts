@@ -320,6 +320,17 @@ export interface Connection {
   endorsementGiven?: boolean;
   recommendationReceived?: boolean;
   initiatedBy?: "user" | "them";
+  // Multi-source ingestion fields (V1)
+  source?: import("./types").DataSource;
+  sourceImportId?: string;
+  importedAt?: string;
+  sources?: import("./types").DataSource[];
+  isLatentTie?: boolean;
+  // Status tracking fields (V1)
+  status?: import("./types").ConnectionStatus;
+  statusUpdatedAt?: string;
+  notes?: string;
+  outreachVoice?: import("./types").OutreachVoice;
 }
 
 // ── Graph interfaces ──────────────────────────────────────────────────────
@@ -696,6 +707,8 @@ export function parseLinkedInCSV(rows: RawCSVRow[]): Connection[] {
       networkPosition,
       confidenceLevel,
       activationPriority: priority,
+      source: "linkedin_csv" as const,
+      sources: ["linkedin_csv" as const],
     };
   });
 }
