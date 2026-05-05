@@ -13,7 +13,6 @@ export default function VoiceSampleInput({ voice, onChange, label }: VoiceSample
   const [sample, setSample] = useState(voice?.sample || "");
   const [additionalNotes, setAdditionalNotes] = useState(voice?.additionalNotes || "");
 
-  // Sync external changes
   useEffect(() => {
     setSample(voice?.sample || "");
     setAdditionalNotes(voice?.additionalNotes || "");
@@ -33,25 +32,13 @@ export default function VoiceSampleInput({ voice, onChange, label }: VoiceSample
 
   return (
     <div data-testid="voice-sample-input">
-      <div style={{ marginBottom: 6 }}>
-        <span style={{
-          fontSize: 12,
-          fontWeight: 600,
-          color: "var(--text-primary)",
-          fontFamily: "var(--font-mono)",
-          letterSpacing: "0.03em",
-          textTransform: "uppercase",
-        }}>
+      <div className="mb-1.5">
+        <span className="text-xs font-semibold text-[var(--text-primary)] font-mono tracking-wide uppercase">
           {label || "Voice Sample"}
         </span>
       </div>
 
-      <p style={{
-        fontSize: 12,
-        color: "var(--text-muted)",
-        lineHeight: 1.5,
-        marginBottom: 8,
-      }}>
+      <p className="text-xs text-[var(--text-muted)] leading-relaxed mb-2">
         Write a paragraph in your natural voice. The AI will match your tone, vocabulary, and sentence structure.
       </p>
 
@@ -60,32 +47,12 @@ export default function VoiceSampleInput({ voice, onChange, label }: VoiceSample
         onChange={(e) => setSample(e.target.value)}
         onBlur={handleSampleBlur}
         placeholder="e.g., Hey — saw your post about scaling eng teams. I went through something similar last year at [company] and had a few takeaways that might be useful. Would be great to swap notes sometime. No rush either way."
-        style={{
-          width: "100%",
-          minHeight: 100,
-          resize: "vertical",
-          background: "var(--bg-card)",
-          border: "1px solid var(--border)",
-          borderRadius: 8,
-          padding: "10px 12px",
-          fontSize: 13,
-          lineHeight: 1.6,
-          color: "var(--text-primary)",
-          fontFamily: "inherit",
-          outline: "none",
-          transition: "border-color 0.15s",
-        }}
+        className="w-full min-h-[100px] resize-y bg-[var(--bg-card)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-[13px] leading-relaxed text-[var(--text-primary)] font-inherit outline-none transition-colors focus:border-[rgba(108,75,244,0.3)]"
         data-testid="voice-sample-textarea"
       />
 
-      <div style={{ marginTop: 10 }}>
-        <span style={{
-          fontSize: 11,
-          color: "var(--text-muted)",
-          fontFamily: "var(--font-mono)",
-          letterSpacing: "0.03em",
-          textTransform: "uppercase",
-        }}>
+      <div className="mt-2.5">
+        <span className="text-[11px] text-[var(--text-muted)] font-mono tracking-wide uppercase">
           Additional instructions (optional)
         </span>
         <textarea
@@ -93,22 +60,7 @@ export default function VoiceSampleInput({ voice, onChange, label }: VoiceSample
           onChange={(e) => setAdditionalNotes(e.target.value)}
           onBlur={handleNotesBlur}
           placeholder="e.g., Keep it under 3 sentences. Never use exclamation marks. Always mention mutual connections."
-          style={{
-            width: "100%",
-            minHeight: 50,
-            resize: "vertical",
-            background: "var(--bg-card)",
-            border: "1px solid var(--border)",
-            borderRadius: 8,
-            padding: "8px 12px",
-            fontSize: 12,
-            lineHeight: 1.5,
-            color: "var(--text-primary)",
-            fontFamily: "inherit",
-            outline: "none",
-            marginTop: 6,
-            transition: "border-color 0.15s",
-          }}
+          className="w-full min-h-[50px] resize-y bg-[var(--bg-card)] border border-[var(--border)] rounded-lg px-3 py-2 text-xs leading-relaxed text-[var(--text-primary)] font-inherit outline-none mt-1.5 transition-colors focus:border-[rgba(108,75,244,0.3)]"
           data-testid="voice-additional-textarea"
         />
       </div>

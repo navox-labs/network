@@ -14,12 +14,10 @@ export default function NotesPanel({ notes, onChange }: NotesPanelProps) {
   const [localValue, setLocalValue] = useState(notes);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Sync external changes
   useEffect(() => {
     setLocalValue(notes);
   }, [notes]);
 
-  // Auto-resize textarea
   const resize = useCallback(() => {
     const el = textareaRef.current;
     if (!el) return;
@@ -53,33 +51,13 @@ export default function NotesPanel({ notes, onChange }: NotesPanelProps) {
         }}
         onBlur={handleBlur}
         placeholder="Add notes about this connection..."
-        style={{
-          width: "100%",
-          minHeight: 60,
-          resize: "none",
-          overflow: "hidden",
-          background: "var(--bg-card)",
-          border: "1px solid var(--border)",
-          borderRadius: 8,
-          padding: "10px 12px",
-          fontSize: 13,
-          lineHeight: 1.6,
-          color: "var(--text-primary)",
-          fontFamily: "inherit",
-          outline: "none",
-          transition: "border-color 0.15s",
-        }}
+        className="w-full min-h-[60px] resize-none overflow-hidden bg-[var(--bg-card)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-[13px] leading-relaxed text-[var(--text-primary)] font-inherit outline-none transition-colors focus:border-[rgba(108,75,244,0.3)]"
         data-testid="notes-textarea"
       />
       <div
-        style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          marginTop: 4,
-          fontSize: 11,
-          fontFamily: "var(--font-mono)",
-          color: isOverLimit ? "#ef4444" : "var(--text-muted)",
-        }}
+        className={`flex justify-end mt-1 text-[11px] font-mono ${
+          isOverLimit ? "text-red-500" : "text-[var(--text-muted)]"
+        }`}
         data-testid="notes-char-count"
       >
         {charCount}/{MAX_CHARS}

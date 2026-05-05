@@ -838,11 +838,13 @@ export default function Home() {
         onAddManualContact={() => setShowManualEntry(true)}
       />
 
+      {/* CoachBar hidden for V1 — revisit post-launch
       <CoachBar
         insight={barInsight}
         onAction={handleCoachAction}
         onAskCoach={() => setAskCoachOpen(true)}
       />
+      */}
 
       {(shouldShowBanner(connections.length > 0, enrichmentSummary, bannerDismissed) || isEnriching || enrichResult) && (
         <EnrichBanner

@@ -27,23 +27,11 @@ export default function StatusPill({ status, onChange }: StatusPillProps) {
   }, [open]);
 
   return (
-    <div ref={ref} style={{ position: "relative", display: "inline-block" }}>
+    <div ref={ref} className="relative inline-block">
       <button
         onClick={() => setOpen(!open)}
-        style={{
-          background: config.bg,
-          color: config.text,
-          border: "none",
-          borderRadius: 999,
-          padding: "3px 10px",
-          fontSize: 11,
-          fontWeight: 500,
-          cursor: "pointer",
-          whiteSpace: "nowrap",
-          fontFamily: "var(--font-mono)",
-          letterSpacing: "0.02em",
-          transition: "opacity 0.15s",
-        }}
+        className="rounded-full px-2.5 py-0.5 text-[11px] font-medium whitespace-nowrap font-mono tracking-wide transition-opacity border-none cursor-pointer"
+        style={{ background: config.bg, color: config.text }}
         aria-haspopup="listbox"
         aria-expanded={open}
         data-testid="status-pill"
@@ -54,18 +42,7 @@ export default function StatusPill({ status, onChange }: StatusPillProps) {
       {open && (
         <div
           role="listbox"
-          style={{
-            position: "absolute",
-            top: "calc(100% + 4px)",
-            left: 0,
-            zIndex: 50,
-            background: "#1a1a1a",
-            border: "1px solid var(--border)",
-            borderRadius: 8,
-            padding: "4px 0",
-            minWidth: 140,
-            boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
-          }}
+          className="absolute top-[calc(100%+4px)] left-0 z-50 bg-[#1a1a1a] border border-[var(--border)] rounded-lg py-1 min-w-[140px] shadow-[0_8px_24px_rgba(0,0,0,0.5)]"
           data-testid="status-dropdown"
         >
           {ALL_STATUSES.map((s) => {
@@ -79,30 +56,15 @@ export default function StatusPill({ status, onChange }: StatusPillProps) {
                   onChange(s);
                   setOpen(false);
                 }}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  width: "100%",
-                  padding: "6px 12px",
-                  background: s === current ? "rgba(255,255,255,0.05)" : "transparent",
-                  border: "none",
-                  color: c.text,
-                  fontSize: 12,
-                  cursor: "pointer",
-                  fontFamily: "var(--font-mono)",
-                  textAlign: "left",
-                }}
+                className={`flex items-center gap-2 w-full px-3 py-1.5 border-none text-xs cursor-pointer font-mono text-left ${
+                  s === current ? "bg-white/5" : "bg-transparent hover:bg-white/5"
+                }`}
+                style={{ color: c.text }}
                 data-testid={`status-option-${s}`}
               >
                 <span
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: "50%",
-                    background: c.text,
-                    flexShrink: 0,
-                  }}
+                  className="w-2 h-2 rounded-full shrink-0"
+                  style={{ background: c.text }}
                 />
                 {c.label}
               </button>

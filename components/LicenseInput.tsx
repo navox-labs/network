@@ -1,27 +1,16 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { Check, Loader2, KeyRound, Trash2, ExternalLink } from "lucide-react";
 import { useLicense } from "@/hooks/useLicense";
 import { isValidKeyFormat } from "@/lib/license";
 
-/**
- * LicenseInput — settings panel component for license key entry.
- *
- * States:
- * - No key: shows input + Activate button + "Get License" link
- * - Loading: spinner on button
- * - Active: green status dot + masked key + Deactivate button
- * - Error: red message below input
- */
 export default function LicenseInput() {
-  const { licensed, licenseKey, loading, error, activate, deactivate } =
-    useLicense();
+  const { licensed, licenseKey, loading, error, activate, deactivate } = useLicense();
   const [input, setInput] = useState("");
   const [activating, setActivating] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-uppercase and format as user types
   const handleChange = (value: string) => {
     setInput(value.toUpperCase());
   };
@@ -43,8 +32,6 @@ export default function LicenseInput() {
   };
 
   const handleGetLicense = async () => {
-    // When Stripe is configured, this will create a checkout session.
-    // For now, open a placeholder or do nothing.
     try {
       const res = await fetch("/network/api/stripe/checkout", {
         method: "POST",
@@ -56,12 +43,11 @@ export default function LicenseInput() {
         window.open(data.url, "_blank", "noopener,noreferrer");
       }
     } catch {
-      // Stripe not configured yet — silent fail
+      // Stripe not configured yet
     }
   };
 
   const maskKey = (key: string): string => {
-    // NAVOX-XXXX-XXXX-XXXX -> NAVOX-****-****-XXXX
     const parts = key.split("-");
     if (parts.length === 4) {
       return `${parts[0]}-****-****-${parts[3]}`;
@@ -73,73 +59,18 @@ export default function LicenseInput() {
   if (licensed && licenseKey) {
     return (
       <div>
-        <div
-          style={{
-            fontSize: 12,
-            color: "var(--text-muted)",
-            marginBottom: 8,
-            fontFamily: "var(--font-mono)",
-            letterSpacing: "0.04em",
-            textTransform: "uppercase",
-          }}
-        >
+        <div className="text-xs text-[var(--text-muted)] mb-2 font-mono tracking-wider uppercase">
           License
         </div>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "10px 12px",
-            background: "var(--bg-card)",
-            border: "1px solid var(--border)",
-            borderRadius: 8,
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: "50%",
-                background: "var(--strong)",
-                flexShrink: 0,
-              }}
-            />
-            <span
-              style={{
-                fontSize: 12,
-                color: "var(--text-secondary)",
-                fontFamily: "var(--font-mono)",
-              }}
-            >
-              Active
-            </span>
-            <span
-              style={{
-                fontSize: 11,
-                color: "var(--text-muted)",
-                fontFamily: "var(--font-mono)",
-              }}
-            >
-              {maskKey(licenseKey)}
-            </span>
+        <div className="flex items-center justify-between px-3 py-2.5 bg-[var(--bg-card)] border border-[var(--border)] rounded-lg">
+          <div className="flex items-center gap-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-[var(--strong)] shrink-0" />
+            <span className="text-xs text-[var(--text-secondary)] font-mono">Active</span>
+            <span className="text-[11px] text-[var(--text-muted)] font-mono">{maskKey(licenseKey)}</span>
           </div>
           <button
             onClick={handleDeactivate}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 4,
-              background: "none",
-              border: "1px solid var(--border)",
-              borderRadius: 6,
-              padding: "4px 10px",
-              color: "var(--critical)",
-              fontSize: 11,
-              cursor: "pointer",
-              fontFamily: "var(--font-sans)",
-            }}
+            className="flex items-center gap-1 bg-transparent border border-[var(--border)] rounded-md px-2.5 py-1 text-[var(--critical)] text-[11px] cursor-pointer"
           >
             <Trash2 size={11} />
             Deactivate
@@ -149,26 +80,16 @@ export default function LicenseInput() {
     );
   }
 
-  // Input state
   const isValidFormat = isValidKeyFormat(input);
   const showFormatHint = input.length > 0 && !isValidFormat;
 
   return (
     <div>
-      <div
-        style={{
-          fontSize: 12,
-          color: "var(--text-muted)",
-          marginBottom: 8,
-          fontFamily: "var(--font-mono)",
-          letterSpacing: "0.04em",
-          textTransform: "uppercase",
-        }}
-      >
+      <div className="text-xs text-[var(--text-muted)] mb-2 font-mono tracking-wider uppercase">
         License
       </div>
 
-      <div style={{ display: "flex", gap: 8 }}>
+      <div className="flex gap-2">
         <input
           ref={inputRef}
           type="text"
@@ -179,40 +100,19 @@ export default function LicenseInput() {
           onKeyDown={(e) => {
             if (e.key === "Enter" && isValidFormat) handleActivate();
           }}
-          style={{
-            flex: 1,
-            background: "var(--bg-card)",
-            border: `1px solid ${error ? "var(--critical)" : "var(--border)"}`,
-            borderRadius: 6,
-            padding: "7px 10px",
-            color: "var(--text-primary)",
-            fontSize: 13,
-            fontFamily: "var(--font-mono)",
-            letterSpacing: "0.05em",
-            outline: "none",
-            transition: "border-color 0.15s ease",
-          }}
-          onFocus={(e) => {
-            if (!error) e.currentTarget.style.borderColor = "rgba(108,75,244,0.3)";
-          }}
-          onBlur={(e) => {
-            if (!error) e.currentTarget.style.borderColor = "var(--border)";
-          }}
+          className={`flex-1 bg-[var(--bg-card)] border rounded-md py-[7px] px-2.5 text-[var(--text-primary)] text-[13px] font-mono tracking-wider outline-none transition-colors focus:border-[rgba(108,75,244,0.3)] ${
+            error ? "border-[var(--critical)]" : "border-[var(--border)]"
+          }`}
         />
         <button
           onClick={handleActivate}
           disabled={!isValidFormat || activating || loading}
-          className="btn btn-primary"
-          style={{
-            padding: "7px 12px",
-            opacity: !isValidFormat || activating ? 0.5 : 1,
-            display: "flex",
-            alignItems: "center",
-            gap: 4,
-          }}
+          className={`btn btn-primary py-[7px] px-3 flex items-center gap-1 ${
+            !isValidFormat || activating ? "opacity-50" : ""
+          }`}
         >
           {activating ? (
-            <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />
+            <Loader2 size={14} className="animate-spin" />
           ) : (
             <KeyRound size={14} />
           )}
@@ -220,50 +120,21 @@ export default function LicenseInput() {
         </button>
       </div>
 
-      {/* Format hint */}
       {showFormatHint && (
-        <div
-          style={{
-            marginTop: 6,
-            fontSize: 11,
-            color: "var(--text-muted)",
-            fontFamily: "var(--font-mono)",
-          }}
-        >
+        <div className="mt-1.5 text-[11px] text-[var(--text-muted)] font-mono">
           Format: NAVOX-XXXX-XXXX-XXXX
         </div>
       )}
 
-      {/* Error message */}
       {error && (
-        <div
-          style={{
-            marginTop: 6,
-            fontSize: 12,
-            color: "var(--critical)",
-            fontFamily: "var(--font-mono)",
-          }}
-        >
+        <div className="mt-1.5 text-xs text-[var(--critical)] font-mono">
           {error}
         </div>
       )}
 
-      {/* Get License link */}
       <button
         onClick={handleGetLicense}
-        style={{
-          marginTop: 10,
-          display: "flex",
-          alignItems: "center",
-          gap: 4,
-          background: "none",
-          border: "none",
-          color: "var(--accent)",
-          fontSize: 12,
-          cursor: "pointer",
-          fontFamily: "var(--font-mono)",
-          padding: 0,
-        }}
+        className="mt-2.5 flex items-center gap-1 bg-transparent border-none text-[var(--accent)] text-xs cursor-pointer font-mono p-0 hover:opacity-80 transition-opacity"
       >
         <ExternalLink size={11} />
         Get a license ($39/mo)

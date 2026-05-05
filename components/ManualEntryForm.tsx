@@ -45,64 +45,24 @@ export default function ManualEntryForm({ onAdd, onCancel }: ManualEntryFormProp
 
   return (
     <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 100,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "rgba(0, 0, 0, 0.6)",
-        backdropFilter: "blur(4px)",
-      }}
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm"
       onClick={(e) => {
         if (e.target === e.currentTarget) onCancel();
       }}
     >
-      <div
-        className="fade-in"
-        style={{
-          background: "#111",
-          border: "1px solid var(--border)",
-          borderRadius: 12,
-          padding: "28px 28px 24px",
-          width: "100%",
-          maxWidth: 420,
-          margin: "0 16px",
-        }}
-      >
+      <div className="fade-in bg-[#111] border border-[var(--border)] rounded-xl px-7 pb-6 pt-7 w-full max-w-[420px] mx-4">
         {/* Header */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: 20,
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <UserPlus size={16} color="var(--accent)" />
-            <span
-              style={{
-                fontSize: 14,
-                fontWeight: 600,
-                color: "var(--text-primary)",
-              }}
-            >
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-2">
+            <UserPlus size={16} className="text-[var(--accent)]" />
+            <span className="text-sm font-semibold text-[var(--text-primary)]">
               Add Contact Manually
             </span>
           </div>
           <button
             type="button"
             onClick={onCancel}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              padding: 4,
-              color: "var(--text-muted)",
-              display: "flex",
-            }}
+            className="bg-transparent border-none cursor-pointer p-1 text-[var(--text-muted)] flex"
             aria-label="Close"
           >
             <X size={16} />
@@ -110,94 +70,29 @@ export default function ManualEntryForm({ onAdd, onCancel }: ManualEntryFormProp
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {/* Name row */}
-            <div style={{ display: "flex", gap: 10 }}>
-              <Field
-                label="First Name"
-                value={firstName}
-                onChange={setFirstName}
-                placeholder="Alice"
-                autoFocus
-              />
-              <Field
-                label="Last Name"
-                value={lastName}
-                onChange={setLastName}
-                placeholder="Smith"
-              />
+          <div className="flex flex-col gap-3">
+            <div className="flex gap-2.5">
+              <Field label="First Name" value={firstName} onChange={setFirstName} placeholder="Alice" autoFocus />
+              <Field label="Last Name" value={lastName} onChange={setLastName} placeholder="Smith" />
             </div>
-
-            <Field
-              label="Email"
-              value={email}
-              onChange={setEmail}
-              placeholder="alice@company.com"
-              type="email"
-            />
-
-            <Field
-              label="Company"
-              value={company}
-              onChange={setCompany}
-              placeholder="Acme Corp"
-            />
-
-            <Field
-              label="Position"
-              value={position}
-              onChange={setPosition}
-              placeholder="Senior Engineer"
-            />
+            <Field label="Email" value={email} onChange={setEmail} placeholder="alice@company.com" type="email" />
+            <Field label="Company" value={company} onChange={setCompany} placeholder="Acme Corp" />
+            <Field label="Position" value={position} onChange={setPosition} placeholder="Senior Engineer" />
           </div>
 
           {error && (
-            <div
-              style={{
-                marginTop: 12,
-                padding: "8px 12px",
-                background: "rgba(220,38,38,0.08)",
-                border: "1px solid rgba(220,38,38,0.2)",
-                borderRadius: 6,
-                color: "var(--critical)",
-                fontSize: 12,
-              }}
-            >
+            <div className="mt-3 px-3 py-2 bg-red-500/10 border border-red-500/20 rounded-md text-[var(--critical)] text-xs">
               {error}
             </div>
           )}
 
-          {/* Actions */}
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "flex-end",
-              gap: 8,
-              marginTop: 20,
-            }}
-          >
-            <button
-              type="button"
-              onClick={onCancel}
-              className="btn btn-ghost"
-              style={{ fontSize: 12, padding: "6px 16px", height: 32 }}
-            >
+          <div className="flex justify-end gap-2 mt-5">
+            <button type="button" onClick={onCancel} className="btn btn-ghost text-xs px-4 h-8">
               Cancel
             </button>
             <button
               type="submit"
-              className="btn"
-              style={{
-                fontSize: 12,
-                padding: "6px 16px",
-                height: 32,
-                background: "var(--accent)",
-                color: "#fff",
-                border: "none",
-                borderRadius: 6,
-                cursor: "pointer",
-                fontWeight: 500,
-              }}
+              className="text-xs px-4 h-8 bg-[var(--accent)] text-white border-none rounded-md cursor-pointer font-medium hover:opacity-90 transition-opacity"
             >
               Add Contact
             </button>
@@ -224,18 +119,8 @@ function Field({
   autoFocus?: boolean;
 }) {
   return (
-    <div style={{ flex: 1 }}>
-      <label
-        style={{
-          display: "block",
-          fontSize: 11,
-          color: "var(--text-muted)",
-          marginBottom: 4,
-          fontFamily: "var(--font-mono)",
-          letterSpacing: "0.04em",
-          textTransform: "uppercase",
-        }}
-      >
+    <div className="flex-1">
+      <label className="block text-[11px] text-[var(--text-muted)] mb-1 font-mono tracking-wider uppercase">
         {label}
       </label>
       <input
@@ -244,23 +129,7 @@ function Field({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         autoFocus={autoFocus}
-        style={{
-          width: "100%",
-          padding: "7px 10px",
-          background: "rgba(255,255,255,0.04)",
-          border: "1px solid var(--border)",
-          borderRadius: 6,
-          color: "var(--text-primary)",
-          fontSize: 13,
-          outline: "none",
-          transition: "border-color 0.15s",
-        }}
-        onFocus={(e) => {
-          e.currentTarget.style.borderColor = "var(--accent-dim)";
-        }}
-        onBlur={(e) => {
-          e.currentTarget.style.borderColor = "var(--border)";
-        }}
+        className="w-full py-[7px] px-2.5 bg-white/[0.04] border border-[var(--border)] rounded-md text-[var(--text-primary)] text-[13px] outline-none transition-colors focus:border-[var(--accent-dim)]"
       />
     </div>
   );
