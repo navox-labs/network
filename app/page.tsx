@@ -550,7 +550,78 @@ export default function Home() {
       setIsLoading(false);
       setParsingStage(null);
     }
-  }, []);
+  }, [connections]);
+
+  // Handle manual contact addition
+  const handleAddManualContact = useCallback((partial: Partial<Connection>) => {
+    const today = new Date().toISOString().split("T")[0];
+    const company = partial.company || "";
+    const position = partial.position || "";
+    const industryCluster = classifyIndustry(company, position);
+    const ts = calculateTieStrength(today);
+    const tieCategory = tieCategoryFromStrength(ts);
+    const roleCategory = classifyRole(position);
+    const daysSince = 0;
+
+    // Rebuild bridge detection with current connections + new one
+    const allForBridge = [...connections.map((c) => ({ industryCluster: c.industryCluster })), { industryCluster }];
+    const clusterCounts = detectBridges(allForBridge);
+    const bridge = isBridgeConnection(industryCluster, clusterCounts);
+    const dominantCluster = connections.length > 0 ? getDominantCluster(connections) : industryCluster;
+    const networkPosition = classifyNetworkPosition(industryCluster, dominantCluster, daysSince, bridge);
+    const priority = activationPriority(ts, bridge, networkPosition);
+
+    const newConn: Connection = {
+      id: `manual-${Date.now()}`,
+      name: partial.name || "Unknown",
+      firstName: partial.firstName || "",
+      lastName: partial.lastName || "",
+      company,
+      position,
+      connectedOn: today,
+      email: partial.email,
+      tieStrength: ts,
+      tieCategory,
+      roleCategory,
+      daysSinceConnected: daysSince,
+      industryCluster,
+      isBridge: bridge,
+      networkPosition,
+      confidenceLevel: assignConfidenceLevel(daysSince),
+      activationPriority: priority,
+      source: "manual_entry",
+      sources: ["manual_entry"],
+    };
+
+    const updatedConns = [...connections, newConn];
+    const graph = buildGraphData(updatedConns);
+    const gaps = analyzeGaps(updatedConns);
+
+    setConnections(updatedConns);
+    setGraphData(graph);
+    setGapAnalysis(gaps);
+    setShowManualEntry(false);
+
+    // Persist
+    (async () => {
+      try {
+        const { saveFullState } = await import("@/lib/localDB");
+        await saveFullState({
+          schemaVersion: 3,
+          connections: updatedConns,
+          gapAnalysis: gaps,
+          uploadedAt: new Date().toISOString(),
+          displayFilename: csvMeta?.filename || "Network",
+          enrichment: enrichmentSummary || undefined,
+        });
+      } catch {
+        console.warn("IndexedDB save failed.");
+      }
+    })();
+
+    const ctx = buildAgentContext(updatedConns, gaps);
+    systemPromptRef.current = buildSystemPrompt(ctx);
+  }, [connections, csvMeta, enrichmentSummary]);
 
   const handleReset = async () => {
     setConnections([]);
@@ -764,6 +835,7 @@ export default function Home() {
         csvMeta={csvMeta}
         onReset={handleReset}
         onOpenSettings={() => setSettingsOpen(true)}
+        onAddManualContact={() => setShowManualEntry(true)}
       />
 
       <CoachBar
@@ -847,6 +919,13 @@ export default function Home() {
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
       />
+
+      {showManualEntry && (
+        <ManualEntryForm
+          onAdd={handleAddManualContact}
+          onCancel={() => setShowManualEntry(false)}
+        />
+      )}
     </div>
   );
 }
