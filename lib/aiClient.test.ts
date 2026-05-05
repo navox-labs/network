@@ -5,6 +5,7 @@ import {
   saveAIConfig,
   clearAIConfig,
   streamAIResponse,
+  proxyStreamAIResponse,
   type AIConfig,
 } from "./aiClient";
 
@@ -383,7 +384,7 @@ describe("streamAIResponse", () => {
   });
 
   // -------------------------------------------------------------------------
-  // D-14: Abort mid-stream for Anthropic — generator stops
+  // D-14: Abort mid-stream for Anthropic -- generator stops
   // -------------------------------------------------------------------------
   it("stops Anthropic generator when aborted mid-stream", async () => {
     const controller = new AbortController();
@@ -418,5 +419,203 @@ describe("streamAIResponse", () => {
     }).rejects.toThrow("aborted");
 
     expect(chunks).toEqual(["Hi"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// proxyStreamAIResponse
+// ---------------------------------------------------------------------------
+describe("proxyStreamAIResponse", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function createSSEStream(lines: string[]): ReadableStream<Uint8Array> {
+    const encoder = new TextEncoder();
+    const text = lines.join("\n") + "\n";
+    return new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode(text));
+        controller.close();
+      },
+    });
+  }
+
+  it("streams Anthropic SSE responses from proxy", async () => {
+    const sseLines = [
+      'data: {"type":"content_block_delta","delta":{"text":"Hello"}}',
+      'data: {"type":"content_block_delta","delta":{"text":" proxy"}}',
+      'data: {"type":"message_stop"}',
+    ];
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(createSSEStream(sseLines), { status: 200 })
+    );
+
+    const chunks: string[] = [];
+    for await (const chunk of proxyStreamAIResponse(
+      "NAVOX-ABCD-1234-EF56",
+      [{ role: "user", content: "hi" }],
+      "system prompt",
+      "draft"
+    )) {
+      chunks.push(chunk);
+    }
+
+    expect(chunks).toEqual(["Hello", " proxy"]);
+    expect(fetch).toHaveBeenCalledWith(
+      "/network/api/ai/draft",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          "x-license-key": "NAVOX-ABCD-1234-EF56",
+          "Content-Type": "application/json",
+        }),
+      })
+    );
+  });
+
+  it("uses correct endpoint path for coach", async () => {
+    const sseLines = [
+      'data: {"type":"content_block_delta","delta":{"text":"advice"}}',
+      'data: {"type":"message_stop"}',
+    ];
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(createSSEStream(sseLines), { status: 200 })
+    );
+
+    const chunks: string[] = [];
+    for await (const chunk of proxyStreamAIResponse(
+      "NAVOX-ABCD-1234-EF56",
+      [{ role: "user", content: "help" }],
+      "coach prompt",
+      "coach"
+    )) {
+      chunks.push(chunk);
+    }
+
+    expect(chunks).toEqual(["advice"]);
+    expect(fetch).toHaveBeenCalledWith(
+      "/network/api/ai/coach",
+      expect.anything()
+    );
+  });
+
+  it("throws error on non-ok response with JSON error body", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: "Invalid license key" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    const gen = proxyStreamAIResponse(
+      "BAD-KEY",
+      [{ role: "user", content: "hi" }],
+      "system",
+      "draft"
+    );
+
+    await expect(gen.next()).rejects.toThrow("Invalid license key");
+  });
+
+  it("throws error on non-ok response without JSON body", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response("Internal Server Error", { status: 500 })
+    );
+
+    const gen = proxyStreamAIResponse(
+      "NAVOX-ABCD-1234-EF56",
+      [{ role: "user", content: "hi" }],
+      "system",
+      "draft"
+    );
+
+    // Non-JSON body falls through to catch, yielding "Unknown error"
+    await expect(gen.next()).rejects.toThrow("Unknown error");
+  });
+
+  it("throws when response has no body", async () => {
+    const mockResponse = new Response(null, { status: 200 });
+    // Override body to null
+    Object.defineProperty(mockResponse, "body", { value: null });
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mockResponse);
+
+    const gen = proxyStreamAIResponse(
+      "NAVOX-ABCD-1234-EF56",
+      [{ role: "user", content: "hi" }],
+      "system",
+      "draft"
+    );
+
+    await expect(gen.next()).rejects.toThrow("No response stream");
+  });
+
+  it("sends messages and systemPrompt in request body", async () => {
+    const sseLines = ['data: {"type":"message_stop"}'];
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(createSSEStream(sseLines), { status: 200 })
+    );
+
+    const messages = [{ role: "user", content: "test message" }];
+    const systemPrompt = "test system prompt";
+
+    for await (const _ of proxyStreamAIResponse(
+      "NAVOX-ABCD-1234-EF56",
+      messages,
+      systemPrompt,
+      "draft"
+    )) {}
+
+    const call = vi.mocked(fetch).mock.calls[0];
+    const body = JSON.parse(call[1]!.body as string);
+    expect(body.messages).toEqual(messages);
+    expect(body.systemPrompt).toBe(systemPrompt);
+  });
+
+  it("handles [DONE] sentinel in SSE stream", async () => {
+    const sseLines = [
+      'data: {"type":"content_block_delta","delta":{"text":"before"}}',
+      "data: [DONE]",
+      'data: {"type":"content_block_delta","delta":{"text":"after"}}',
+    ];
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(createSSEStream(sseLines), { status: 200 })
+    );
+
+    const chunks: string[] = [];
+    for await (const chunk of proxyStreamAIResponse(
+      "NAVOX-ABCD-1234-EF56",
+      [{ role: "user", content: "hi" }],
+      "system",
+      "draft"
+    )) {
+      chunks.push(chunk);
+    }
+
+    expect(chunks).toEqual(["before"]);
+  });
+
+  it("passes abort signal to fetch", async () => {
+    const controller = new AbortController();
+    const sseLines = ['data: {"type":"message_stop"}'];
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(createSSEStream(sseLines), { status: 200 })
+    );
+
+    for await (const _ of proxyStreamAIResponse(
+      "NAVOX-ABCD-1234-EF56",
+      [{ role: "user", content: "hi" }],
+      "system",
+      "draft",
+      controller.signal
+    )) {}
+
+    const call = vi.mocked(fetch).mock.calls[0];
+    expect(call[1]!.signal).toBe(controller.signal);
   });
 });

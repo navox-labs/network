@@ -10,6 +10,13 @@ import {
   enrichTieStrength,
   tieCategoryFromStrength,
   activationPriority,
+  calculateTieStrength,
+  classifyIndustry,
+  classifyRole,
+  detectBridges,
+  isBridgeConnection,
+  classifyNetworkPosition,
+  getDominantCluster,
   type Connection,
   type GraphData,
   type GapAnalysis,
@@ -20,8 +27,13 @@ import {
   ingestFiles,
   validateFileMap,
   summarizeFiles,
+  isGenericCSV,
+  normalizeGenericCSVHeaders,
   type FilePresenceSummary,
 } from "@/lib/fileIngestor";
+import {
+  mergeMultiSourceContacts,
+} from "@/lib/setLogic";
 import {
   parseMessages,
   parseEndorsements,
@@ -42,8 +54,9 @@ import { buildContextSection, type CoachContext } from "@/lib/coachContext";
 import { getBarInsight, getDraftPrompt } from "@/lib/coachInsights";
 import { getAIConfig, streamAIResponse, DRAFT_NO_KEY } from "@/lib/aiClient";
 
-import UploadScreen from "@/components/UploadScreen";
+import UploadScreen, { type SourceType } from "@/components/UploadScreen";
 import TopBar from "@/components/TopBar";
+import ManualEntryForm from "@/components/ManualEntryForm";
 import GraphView from "@/components/GraphView";
 import GapPanel from "@/components/GapPanel";
 import CompanySearch from "@/components/CompanySearch";
@@ -80,6 +93,7 @@ export default function Home() {
   const [searchResultCount, setSearchResultCount] = useState(0);
   const [draftMessages, setDraftMessages] = useState<Map<string, string>>(new Map());
   const [draftingId, setDraftingId] = useState<string | null>(null);
+  const [showManualEntry, setShowManualEntry] = useState(false);
   const systemPromptRef = useRef("");
   const draftAbortRef = useRef<AbortController | null>(null);
 
@@ -245,138 +259,290 @@ export default function Home() {
     }
   };
 
-  const handleFiles = useCallback(async (files: File[]) => {
+  const handleFiles = useCallback(async (files: File[], sourceType: SourceType = "linkedin") => {
     setIsLoading(true);
     setError(null);
     setParsingStage("Detecting file type…");
 
     try {
-      // Step 1: Ingest files (zip, folder, or loose CSVs)
-      const fileMap = await ingestFiles(files);
+      if (sourceType === "generic") {
+        // ── Generic CSV path ──────────────────────────────────────────
+        // Read the first CSV file and parse it with normalized headers
+        const csvFile = files.find((f) => f.name.toLowerCase().endsWith(".csv"));
+        if (!csvFile) {
+          setError("No CSV file found. Please upload a .csv file.");
+          setIsLoading(false);
+          setParsingStage(null);
+          return;
+        }
 
-      // Step 2: Validate — connections.csv is required
-      const validationError = validateFileMap(fileMap);
-      if (validationError) {
-        setError(validationError);
-        setIsLoading(false);
-        setParsingStage(null);
-        return;
-      }
-
-      const fileSummary = summarizeFiles(fileMap);
-      setParsingStage("Parsing connections…");
-
-      // Step 3: Parse connections.csv
-      const connectionsCSV = stripCsvPreamble(fileMap.get("connections.csv")!);
-      const parseResult = Papa.parse<RawCSVRow>(connectionsCSV, {
-        header: true,
-        skipEmptyLines: true,
-      });
-      const parsed = parseLinkedInCSV(parseResult.data);
-
-      if (parsed.length === 0) {
-        setError("No connections found. Make sure this is a LinkedIn Connections.csv export.");
-        setIsLoading(false);
-        setParsingStage(null);
-        return;
-      }
-
-      // Step 4: Parse enrichment files if present
-      let enrichment: EnrichmentSummary | null = null;
-      const hasEnrichmentFiles = fileSummary.enrichmentFileCount > 0;
-
-      if (hasEnrichmentFiles) {
-        setParsingStage("Matching enrichment data…");
-
-        const msgRows = fileMap.has("messages.csv")
-          ? Papa.parse<Record<string, string>>(fileMap.get("messages.csv")!, { header: true, skipEmptyLines: true }).data
-          : [];
-        const endorseRows = fileMap.has("endorsement_received_info.csv")
-          ? Papa.parse<Record<string, string>>(fileMap.get("endorsement_received_info.csv")!, { header: true, skipEmptyLines: true }).data
-          : [];
-        const endorseGivenRows = fileMap.has("endorsement_given_info.csv")
-          ? Papa.parse<Record<string, string>>(fileMap.get("endorsement_given_info.csv")!, { header: true, skipEmptyLines: true }).data
-          : [];
-        const recRows = fileMap.has("recommendations_received.csv")
-          ? Papa.parse<Record<string, string>>(fileMap.get("recommendations_received.csv")!, { header: true, skipEmptyLines: true }).data
-          : [];
-        const invRows = fileMap.has("invitations.csv")
-          ? Papa.parse<Record<string, string>>(fileMap.get("invitations.csv")!, { header: true, skipEmptyLines: true }).data
-          : [];
-
-        // Detect user's own profile URL from messages for accurate latent-tie counting
-        const userProfileUrl = detectUserProfileUrl(
-          parseMessages(msgRows), parsed
-        );
-
-        const messages = parseMessages(msgRows, userProfileUrl);
-        const endorsements = parseEndorsements(endorseRows);
-        const endorsementsGiven = parseEndorsementsGiven(endorseGivenRows);
-        const recommendations = parseRecommendations(recRows);
-        const invitations = parseInvitations(invRows);
-
-        const enrichmentMap = computeConnectionEnrichments(
-          messages, endorsements, recommendations, invitations, parsed, endorsementsGiven
-        );
-
-        // Apply enrichment to connections
-        applyEnrichment(parsed, enrichmentMap, true);
-
-        enrichment = buildEnrichmentSummary(
-          fileSummary.loaded,
-          enrichmentMap,
-          invitations,
-          messages.length,
-          messages,
-          parsed,
-          userProfileUrl
-        );
-      }
-
-      // Step 5: Build graph and gap analysis
-      setParsingStage("Building network graph…");
-      const graph = buildGraphData(parsed);
-      const gaps = analyzeGaps(parsed);
-
-      // Step 6: Update state
-      setConnections(parsed);
-      setGraphData(graph);
-      setGapAnalysis(gaps);
-      setEnrichmentSummary(enrichment);
-      // Determine display name: zip filename > folder name > fallback
-      let displayFilename = "LinkedIn Export";
-      const zipFile = files.find((f) => f.name.toLowerCase().endsWith(".zip"));
-      if (zipFile) {
-        displayFilename = zipFile.name;
-      } else if (files[0]?.webkitRelativePath) {
-        const folderName = files[0].webkitRelativePath.split("/")[0];
-        if (folderName) displayFilename = folderName;
-      }
-
-      setCsvMeta({
-        filename: displayFilename,
-        generatedAt: new Date().toLocaleDateString("en-CA"),
-      });
-
-      // Step 7: Save to IndexedDB — isolated try/catch
-      // so a storage error doesn't mask the successful parse
-      try {
-        const { saveFullState } = await import("@/lib/localDB");
-        await saveFullState({
-          schemaVersion: 3,
-          connections: parsed,
-          gapAnalysis: gaps,
-          uploadedAt: new Date().toISOString(),
-          displayFilename,
-          enrichment: enrichment || undefined,
+        setParsingStage("Reading CSV…");
+        const csvText = await csvFile.text();
+        const rawParse = Papa.parse<Record<string, string>>(csvText, {
+          header: true,
+          skipEmptyLines: true,
         });
-      } catch {
-        console.warn("IndexedDB save failed — data will not persist across refresh.");
-      }
 
-      // Step 8: Build system prompt
-      const ctx = buildAgentContext(parsed, gaps);
-      systemPromptRef.current = buildSystemPrompt(ctx);
+        if (!rawParse.meta.fields || rawParse.meta.fields.length === 0) {
+          setError("Could not detect CSV headers. Please check the file format.");
+          setIsLoading(false);
+          setParsingStage(null);
+          return;
+        }
+
+        if (!isGenericCSV(rawParse.meta.fields)) {
+          setError("CSV does not contain recognizable contact columns (need at least 2 of: first name, last name, email, company, position).");
+          setIsLoading(false);
+          setParsingStage(null);
+          return;
+        }
+
+        const headerMap = normalizeGenericCSVHeaders(rawParse.meta.fields);
+        setParsingStage("Parsing contacts…");
+
+        // Build Connection objects from generic CSV rows
+        const today = new Date().toISOString().split("T")[0];
+        const preClassified = rawParse.data
+          .map((row) => {
+            // Map row fields using headerMap
+            const mapped: Record<string, string> = {};
+            for (const [origHeader, canonical] of Object.entries(headerMap)) {
+              mapped[canonical] = (row[origHeader] || "").trim();
+            }
+            return mapped;
+          })
+          .filter((m) => m["First Name"] || m["Last Name"])
+          .map((m) => {
+            const company = m["Company"] || "";
+            const position = m["Position"] || "";
+            return {
+              mapped: m,
+              company,
+              position,
+              industryCluster: classifyIndustry(company, position),
+            };
+          });
+
+        const clusterCounts = detectBridges(preClassified);
+        const dominantCluster = preClassified.length > 0
+          ? getDominantCluster(preClassified.map((p) => ({
+              industryCluster: p.industryCluster,
+            })) as Connection[])
+          : "Other" as const;
+
+        const parsed: Connection[] = preClassified.map((pre, i) => {
+          const { mapped, company, position, industryCluster } = pre;
+          const firstName = mapped["First Name"] || "";
+          const lastName = mapped["Last Name"] || "";
+          const name = `${firstName} ${lastName}`.trim() || "Unknown";
+          const email = mapped["Email Address"] || "";
+
+          const ts = calculateTieStrength(today);
+          const tieCategory = tieCategoryFromStrength(ts);
+          const roleCategory = classifyRole(position);
+          const bridge = isBridgeConnection(industryCluster, clusterCounts);
+          const daysSince = 0;
+          const confidenceLevel = assignConfidenceLevel(daysSince);
+          const networkPosition = classifyNetworkPosition(
+            industryCluster, dominantCluster, daysSince, bridge
+          );
+          const priority = activationPriority(ts, bridge, networkPosition);
+
+          return {
+            id: `gen-${i}`,
+            name,
+            firstName,
+            lastName,
+            company,
+            position,
+            connectedOn: today,
+            email: email || undefined,
+            tieStrength: ts,
+            tieCategory,
+            roleCategory,
+            daysSinceConnected: daysSince,
+            industryCluster,
+            isBridge: bridge,
+            networkPosition,
+            confidenceLevel,
+            activationPriority: priority,
+            source: "generic_csv" as const,
+            sources: ["generic_csv" as const],
+          };
+        });
+
+        if (parsed.length === 0) {
+          setError("No contacts found in CSV. Check that rows have at least a first or last name.");
+          setIsLoading(false);
+          setParsingStage(null);
+          return;
+        }
+
+        // If we already have connections loaded, merge
+        const finalConnections = connections.length > 0
+          ? mergeMultiSourceContacts(connections, parsed, "generic_csv")
+          : parsed;
+
+        setParsingStage("Building network graph…");
+        const graph = buildGraphData(finalConnections);
+        const gaps = analyzeGaps(finalConnections);
+
+        setConnections(finalConnections);
+        setGraphData(graph);
+        setGapAnalysis(gaps);
+        setEnrichmentSummary(null);
+
+        const displayFilename = csvFile.name;
+        setCsvMeta({
+          filename: displayFilename,
+          generatedAt: new Date().toLocaleDateString("en-CA"),
+        });
+
+        try {
+          const { saveFullState } = await import("@/lib/localDB");
+          await saveFullState({
+            schemaVersion: 3,
+            connections: finalConnections,
+            gapAnalysis: gaps,
+            uploadedAt: new Date().toISOString(),
+            displayFilename,
+          });
+        } catch {
+          console.warn("IndexedDB save failed — data will not persist across refresh.");
+        }
+
+        const ctx = buildAgentContext(finalConnections, gaps);
+        systemPromptRef.current = buildSystemPrompt(ctx);
+
+      } else {
+        // ── LinkedIn CSV path (existing behavior) ─────────────────────
+        // Step 1: Ingest files (zip, folder, or loose CSVs)
+        const fileMap = await ingestFiles(files);
+
+        // Step 2: Validate — connections.csv is required
+        const validationError = validateFileMap(fileMap);
+        if (validationError) {
+          setError(validationError);
+          setIsLoading(false);
+          setParsingStage(null);
+          return;
+        }
+
+        const fileSummary = summarizeFiles(fileMap);
+        setParsingStage("Parsing connections…");
+
+        // Step 3: Parse connections.csv
+        const connectionsCSV = stripCsvPreamble(fileMap.get("connections.csv")!);
+        const parseResult = Papa.parse<RawCSVRow>(connectionsCSV, {
+          header: true,
+          skipEmptyLines: true,
+        });
+        const parsed = parseLinkedInCSV(parseResult.data);
+
+        if (parsed.length === 0) {
+          setError("No connections found. Make sure this is a LinkedIn Connections.csv export.");
+          setIsLoading(false);
+          setParsingStage(null);
+          return;
+        }
+
+        // Step 4: Parse enrichment files if present
+        let enrichment: EnrichmentSummary | null = null;
+        const hasEnrichmentFiles = fileSummary.enrichmentFileCount > 0;
+
+        if (hasEnrichmentFiles) {
+          setParsingStage("Matching enrichment data…");
+
+          const msgRows = fileMap.has("messages.csv")
+            ? Papa.parse<Record<string, string>>(fileMap.get("messages.csv")!, { header: true, skipEmptyLines: true }).data
+            : [];
+          const endorseRows = fileMap.has("endorsement_received_info.csv")
+            ? Papa.parse<Record<string, string>>(fileMap.get("endorsement_received_info.csv")!, { header: true, skipEmptyLines: true }).data
+            : [];
+          const endorseGivenRows = fileMap.has("endorsement_given_info.csv")
+            ? Papa.parse<Record<string, string>>(fileMap.get("endorsement_given_info.csv")!, { header: true, skipEmptyLines: true }).data
+            : [];
+          const recRows = fileMap.has("recommendations_received.csv")
+            ? Papa.parse<Record<string, string>>(fileMap.get("recommendations_received.csv")!, { header: true, skipEmptyLines: true }).data
+            : [];
+          const invRows = fileMap.has("invitations.csv")
+            ? Papa.parse<Record<string, string>>(fileMap.get("invitations.csv")!, { header: true, skipEmptyLines: true }).data
+            : [];
+
+          // Detect user's own profile URL from messages for accurate latent-tie counting
+          const userProfileUrl = detectUserProfileUrl(
+            parseMessages(msgRows), parsed
+          );
+
+          const messages = parseMessages(msgRows, userProfileUrl);
+          const endorsements = parseEndorsements(endorseRows);
+          const endorsementsGiven = parseEndorsementsGiven(endorseGivenRows);
+          const recommendations = parseRecommendations(recRows);
+          const invitations = parseInvitations(invRows);
+
+          const enrichmentMap = computeConnectionEnrichments(
+            messages, endorsements, recommendations, invitations, parsed, endorsementsGiven
+          );
+
+          // Apply enrichment to connections
+          applyEnrichment(parsed, enrichmentMap, true);
+
+          enrichment = buildEnrichmentSummary(
+            fileSummary.loaded,
+            enrichmentMap,
+            invitations,
+            messages.length,
+            messages,
+            parsed,
+            userProfileUrl
+          );
+        }
+
+        // Step 5: Build graph and gap analysis
+        setParsingStage("Building network graph…");
+        const graph = buildGraphData(parsed);
+        const gaps = analyzeGaps(parsed);
+
+        // Step 6: Update state
+        setConnections(parsed);
+        setGraphData(graph);
+        setGapAnalysis(gaps);
+        setEnrichmentSummary(enrichment);
+        // Determine display name: zip filename > folder name > fallback
+        let displayFilename = "LinkedIn Export";
+        const zipFile = files.find((f) => f.name.toLowerCase().endsWith(".zip"));
+        if (zipFile) {
+          displayFilename = zipFile.name;
+        } else if (files[0]?.webkitRelativePath) {
+          const folderName = files[0].webkitRelativePath.split("/")[0];
+          if (folderName) displayFilename = folderName;
+        }
+
+        setCsvMeta({
+          filename: displayFilename,
+          generatedAt: new Date().toLocaleDateString("en-CA"),
+        });
+
+        // Step 7: Save to IndexedDB — isolated try/catch
+        // so a storage error doesn't mask the successful parse
+        try {
+          const { saveFullState } = await import("@/lib/localDB");
+          await saveFullState({
+            schemaVersion: 3,
+            connections: parsed,
+            gapAnalysis: gaps,
+            uploadedAt: new Date().toISOString(),
+            displayFilename,
+            enrichment: enrichment || undefined,
+          });
+        } catch {
+          console.warn("IndexedDB save failed — data will not persist across refresh.");
+        }
+
+        // Step 8: Build system prompt
+        const ctx = buildAgentContext(parsed, gaps);
+        systemPromptRef.current = buildSystemPrompt(ctx);
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to process files.";
       setError(msg);

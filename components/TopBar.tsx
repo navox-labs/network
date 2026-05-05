@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Rabbit, Network, BarChart3, Search, Zap, RotateCcw, Settings, Menu, X } from "lucide-react";
+import { Rabbit, Network, BarChart3, Search, Zap, RotateCcw, Settings, Menu, X, UserPlus } from "lucide-react";
 import type { Connection, GapAnalysis } from "@/lib/tieStrength";
 import type { ActivePanel } from "@/app/page";
 import { useIsMobile } from "@/hooks/useIsMobile";
@@ -15,6 +15,7 @@ interface Props {
   csvMeta: { filename: string; generatedAt: string } | null;
   onReset: () => void;
   onOpenSettings: () => void;
+  onAddManualContact?: () => void;
 }
 
 const PANELS: { id: ActivePanel; label: string; shortLabel: string; icon: React.ReactNode; desc: string }[] = [
@@ -34,7 +35,7 @@ function getHealthPillStyles(score: number) {
   return { bg: "rgba(220,38,38,0.2)", color: "var(--critical)" };
 }
 
-export default function TopBar({ connections, gapAnalysis, activePanel, setActivePanel, csvMeta, onReset, onOpenSettings }: Props) {
+export default function TopBar({ connections, gapAnalysis, activePanel, setActivePanel, csvMeta, onReset, onOpenSettings, onAddManualContact }: Props) {
   const isMobile = useIsMobile();
   const [menuOpen, setMenuOpen] = useState(false);
   const [healthPopoverOpen, setHealthPopoverOpen] = useState(false);
@@ -110,6 +111,18 @@ export default function TopBar({ connections, gapAnalysis, activePanel, setActiv
             }} />
             {healthScore}
           </button>
+
+          {/* Add Manual Contact */}
+          {onAddManualContact && (
+            <button
+              className="btn btn-ghost"
+              onClick={onAddManualContact}
+              style={{ padding: "4px 8px", fontSize: 11, height: 28, border: "none", marginLeft: 4 }}
+              title="Add contact manually"
+            >
+              <UserPlus size={13} />
+            </button>
+          )}
 
           {/* Settings */}
           <button
@@ -290,6 +303,19 @@ export default function TopBar({ connections, gapAnalysis, activePanel, setActiv
           </button>
         ))}
       </div>
+
+      {/* Add Manual Contact */}
+      {onAddManualContact && (
+        <button
+          className="btn btn-ghost"
+          onClick={onAddManualContact}
+          style={{ padding: "4px 10px", fontSize: 11, height: 30, marginRight: 6 }}
+          title="Add contact manually"
+        >
+          <UserPlus size={13} />
+          <span style={{ marginLeft: 4 }}>Add</span>
+        </button>
+      )}
 
       {/* Health pill */}
       <button

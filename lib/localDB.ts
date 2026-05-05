@@ -10,6 +10,7 @@
 import Dexie, { type Table } from "dexie";
 import type { Connection, GapAnalysis } from "./tieStrength";
 import type { ImportBatch } from "./types";
+import type { EmailContact } from "./gmail/types";
 
 export interface SettingsRecord {
   key: string;
@@ -20,13 +21,24 @@ export class NavoxDB extends Dexie {
   connections!: Table<Connection, string>;
   imports!: Table<ImportBatch, string>;
   settings!: Table<SettingsRecord, string>;
+  emailContacts!: Table<EmailContact & { id: string }, string>;
 
   constructor() {
     super("navox-network");
+
+    // V1: original schema
     this.version(1).stores({
       connections: "id, source, status, [firstName+lastName+company]",
       imports: "id, source, importedAt",
       settings: "key",
+    });
+
+    // V2: add emailContacts table for Gmail integration
+    this.version(2).stores({
+      connections: "id, source, status, [firstName+lastName+company]",
+      imports: "id, source, importedAt",
+      settings: "key",
+      emailContacts: "id, email",
     });
   }
 }

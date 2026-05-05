@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { NOTES_MAX_CHARS } from "@/lib/statusConfig";
 
 interface NotesPanelProps {
   notes: string;
   onChange: (notes: string) => void;
 }
 
-const MAX_CHARS = 2000;
+const MAX_CHARS = NOTES_MAX_CHARS;
 
 export default function NotesPanel({ notes, onChange }: NotesPanelProps) {
   const [localValue, setLocalValue] = useState(notes);

@@ -2,27 +2,12 @@
 
 import { useState, useRef, useEffect } from "react";
 import type { ConnectionStatus } from "@/lib/types";
+import { STATUS_CONFIG, ALL_STATUSES } from "@/lib/statusConfig";
 
 interface StatusPillProps {
   status: ConnectionStatus | undefined;
   onChange: (status: ConnectionStatus) => void;
 }
-
-const STATUS_CONFIG: Record<ConnectionStatus, { label: string; bg: string; text: string }> = {
-  new:                { label: "New",               bg: "rgba(107,114,128,0.15)", text: "#9ca3af" },
-  researching:        { label: "Researching",       bg: "rgba(59,130,246,0.15)",  text: "#60a5fa" },
-  drafted:            { label: "Drafted",           bg: "rgba(234,179,8,0.15)",   text: "#facc15" },
-  sent:               { label: "Sent",              bg: "rgba(249,115,22,0.15)",  text: "#fb923c" },
-  replied:            { label: "Replied",           bg: "rgba(34,197,94,0.15)",   text: "#4ade80" },
-  meeting_scheduled:  { label: "Meeting",           bg: "rgba(168,85,247,0.15)",  text: "#c084fc" },
-  converted:          { label: "Converted",         bg: "rgba(16,185,129,0.15)",  text: "#34d399" },
-  archived:           { label: "Archived",          bg: "rgba(107,114,128,0.10)", text: "#6b7280" },
-};
-
-const ALL_STATUSES: ConnectionStatus[] = [
-  "new", "researching", "drafted", "sent", "replied",
-  "meeting_scheduled", "converted", "archived",
-];
 
 export default function StatusPill({ status, onChange }: StatusPillProps) {
   const [open, setOpen] = useState(false);
@@ -129,5 +114,4 @@ export default function StatusPill({ status, onChange }: StatusPillProps) {
   );
 }
 
-export { STATUS_CONFIG, ALL_STATUSES };
 export type { StatusPillProps };

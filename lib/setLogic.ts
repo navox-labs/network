@@ -76,7 +76,7 @@ export function mergeMultiSourceContacts(
     if (matchIdx !== -1) {
       // Match found — merge sources and keep higher tie strength
       const ex = merged[matchIdx];
-      const existingSources = ex.sources || [ex.source || "linkedin_csv"];
+      const existingSources = [...(ex.sources || [ex.source || "linkedin_csv"])];
       if (!existingSources.includes(incomingSource)) {
         existingSources.push(incomingSource);
       }

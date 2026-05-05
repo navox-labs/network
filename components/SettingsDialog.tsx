@@ -10,6 +10,7 @@ import {
   clearAIConfig,
   detectProvider,
 } from "@/lib/aiClient";
+import LicenseInput from "@/components/LicenseInput";
 
 interface Props {
   isOpen: boolean;
@@ -244,6 +245,11 @@ export default function SettingsDialog({ isOpen, onClose }: Props) {
             Key saved successfully.
           </div>
         )}
+
+        {/* License key section */}
+        <div style={{ padding: "16px 16px 0", borderTop: "1px solid var(--border)", marginTop: 4 }}>
+          <LicenseInput />
+        </div>
 
         {/* ProductHunt badges */}
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center", padding: "16px 0 8px", borderTop: "1px solid var(--border)", marginTop: 16 }}>

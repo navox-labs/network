@@ -8,6 +8,8 @@ import {
   ingestFiles,
   validateFileMap,
   summarizeFiles,
+  isGenericCSV,
+  normalizeGenericCSVHeaders,
 } from "./fileIngestor";
 
 // ── matchRecognizedFile ─────────────────────────────────────────────────
@@ -431,5 +433,87 @@ describe("extractFromFiles — size limits", () => {
     // file.size check is `> MAX_FILE_BYTES`, so exactly 10MB should pass
     const result = await extractFromFiles([exactFile]);
     expect(result.size).toBe(1);
+  });
+});
+
+// ── isGenericCSV ────────────────────────────────────────────────────────
+
+describe("isGenericCSV", () => {
+  it("returns true for generic contact headers", () => {
+    expect(isGenericCSV(["First Name", "Last Name", "Email", "Company"])).toBe(true);
+  });
+
+  it("returns true for variant header names", () => {
+    expect(isGenericCSV(["firstname", "surname", "email address", "organization"])).toBe(true);
+  });
+
+  it("returns true with mixed case and spacing", () => {
+    expect(isGenericCSV(["  First_Name  ", "LAST_NAME", "E-Mail"])).toBe(true);
+  });
+
+  it("returns false for LinkedIn CSV (has 'Connected On')", () => {
+    expect(isGenericCSV(["First Name", "Last Name", "Company", "Connected On"])).toBe(false);
+  });
+
+  it("returns false for LinkedIn CSV (has 'URL')", () => {
+    expect(isGenericCSV(["First Name", "Last Name", "URL"])).toBe(false);
+  });
+
+  it("returns false when fewer than 2 recognizable columns", () => {
+    expect(isGenericCSV(["First Name", "random_col", "another"])).toBe(false);
+  });
+
+  it("returns false for completely unrecognized headers", () => {
+    expect(isGenericCSV(["foo", "bar", "baz"])).toBe(false);
+  });
+
+  it("returns false for empty headers", () => {
+    expect(isGenericCSV([])).toBe(false);
+  });
+
+  it("returns true with position/title variants", () => {
+    expect(isGenericCSV(["given name", "family name", "job title"])).toBe(true);
+  });
+});
+
+// ── normalizeGenericCSVHeaders ──────────────────────────────────────────
+
+describe("normalizeGenericCSVHeaders", () => {
+  it("maps common header variants to canonical names", () => {
+    const result = normalizeGenericCSVHeaders(["firstname", "surname", "email", "org", "role"]);
+    expect(result["firstname"]).toBe("First Name");
+    expect(result["surname"]).toBe("Last Name");
+    expect(result["email"]).toBe("Email Address");
+    expect(result["org"]).toBe("Company");
+    expect(result["role"]).toBe("Position");
+  });
+
+  it("handles mixed case input", () => {
+    const result = normalizeGenericCSVHeaders(["First_Name", "LAST_NAME", "E-Mail"]);
+    expect(result["First_Name"]).toBe("First Name");
+    expect(result["LAST_NAME"]).toBe("Last Name");
+    expect(result["E-Mail"]).toBe("Email Address");
+  });
+
+  it("preserves original header as key", () => {
+    const result = normalizeGenericCSVHeaders(["Given Name", "Family Name"]);
+    expect(result["Given Name"]).toBe("First Name");
+    expect(result["Family Name"]).toBe("Last Name");
+  });
+
+  it("skips unrecognized headers", () => {
+    const result = normalizeGenericCSVHeaders(["email", "phone", "random"]);
+    expect(Object.keys(result)).toHaveLength(1);
+    expect(result["email"]).toBe("Email Address");
+  });
+
+  it("handles empty input", () => {
+    expect(normalizeGenericCSVHeaders([])).toEqual({});
+  });
+
+  it("handles whitespace in headers", () => {
+    const result = normalizeGenericCSVHeaders(["  email  ", " company "]);
+    expect(result["  email  "]).toBe("Email Address");
+    expect(result[" company "]).toBe("Company");
   });
 });
