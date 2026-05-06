@@ -50,7 +50,7 @@ export default function ManualEntryForm({ onAdd, onCancel }: ManualEntryFormProp
         if (e.target === e.currentTarget) onCancel();
       }}
     >
-      <div className="fade-in bg-[#111] border border-[var(--border)] rounded-xl px-7 pb-6 pt-7 w-full max-w-[420px] mx-4">
+      <div className="fade-in bg-[var(--bg-panel)] border border-[var(--border)] rounded-xl px-7 pb-6 pt-7 w-full max-w-[420px] mx-4">
         {/* Header */}
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2">
