@@ -63,6 +63,7 @@ import AppShell, { type ActiveTab } from "@/components/AppShell";
 import EmptyState from "@/components/EmptyState";
 import ContactsTable from "@/components/ContactsTable";
 import ContactDetail from "@/components/ContactDetail";
+import ImportModal from "@/components/ImportModal";
 import { type ListViewId } from "@/lib/listViewFilters";
 import type { ConnectionStatus, OutreachVoice } from "@/lib/types";
 
@@ -105,6 +106,7 @@ export default function Home() {
   const [showManualEntry, setShowManualEntry] = useState(false);
   const systemPromptRef = useRef("");
   const draftAbortRef = useRef<AbortController | null>(null);
+  const wasLoadingRef = useRef(false);
 
   // Load from IndexedDB (with localStorage migration fallback)
   useEffect(() => {
@@ -201,6 +203,14 @@ export default function Home() {
   const barInsight = useMemo(() => {
     return getBarInsight("graph" as ActivePanel, selectedNode, gapAnalysis, searchQuery, searchResultCount);
   }, [selectedNode, gapAnalysis, searchQuery, searchResultCount]);
+
+  // Auto-close import modal when loading transitions from true to false with no error
+  useEffect(() => {
+    if (wasLoadingRef.current && !isLoading && !error && importModalOpen) {
+      setImportModalOpen(false);
+    }
+    wasLoadingRef.current = isLoading;
+  }, [isLoading, error, importModalOpen]);
 
   const handleSearchChange = useCallback((query: string, resultCount: number) => {
     setSearchQuery(query);
@@ -810,10 +820,9 @@ export default function Home() {
     }
   }, [draftMessages, draftingId]);
 
-  // Import handler -- opens manual entry for now (Phase 4 will add ImportModal)
+  // Import handler -- opens ImportModal
   const handleImport = useCallback(() => {
     setImportModalOpen(true);
-    // TODO Phase 4: open ImportModal instead
   }, []);
 
   // Phase 2: Status change handler -- persists to IndexedDB
@@ -971,6 +980,19 @@ export default function Home() {
       <SettingsDialog
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
+      />
+
+      <ImportModal
+        isOpen={importModalOpen}
+        onClose={() => setImportModalOpen(false)}
+        onFiles={handleFiles}
+        onAddManual={() => {
+          setImportModalOpen(false);
+          setShowManualEntry(true);
+        }}
+        isLoading={isLoading}
+        error={error}
+        parsingStage={parsingStage}
       />
 
       {showManualEntry && (
