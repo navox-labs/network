@@ -61,6 +61,9 @@ import AskCoachDialog from "@/components/AskCoachDialog";
 import SettingsDialog from "@/components/SettingsDialog";
 import AppShell, { type ActiveTab } from "@/components/AppShell";
 import EmptyState from "@/components/EmptyState";
+import ContactsTable from "@/components/ContactsTable";
+import { type ListViewId } from "@/lib/listViewFilters";
+import type { ConnectionStatus } from "@/lib/types";
 
 // Keep ActivePanel exported for backward compatibility with coachContext/coachInsights
 export type ActivePanel = "graph" | "gaps" | "search" | "queue";
@@ -77,6 +80,10 @@ export default function Home() {
   const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
   const [csvMeta, setCsvMeta] = useState<{ filename: string; generatedAt: string } | null>(null);
   const [enrichmentSummary, setEnrichmentSummary] = useState<EnrichmentSummary | null>(null);
+
+  // Phase 2: Contacts list view state
+  const [listView, setListView] = useState<ListViewId>("all");
+  const [contactsSearchQuery, setContactsSearchQuery] = useState("");
 
   // Phase 3 / Phase 4 state placeholders
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
@@ -808,6 +815,49 @@ export default function Home() {
     // TODO Phase 4: open ImportModal instead
   }, []);
 
+  // Phase 2: Status change handler -- persists to IndexedDB
+  const handleStatusChange = useCallback(async (id: string, status: ConnectionStatus) => {
+    const updatedConns = connections.map(c =>
+      c.id === id ? { ...c, status, statusUpdatedAt: new Date().toISOString() } : c
+    );
+    setConnections(updatedConns);
+    try {
+      const { updateConnection } = await import("@/lib/localDB");
+      await updateConnection(id, { status, statusUpdatedAt: new Date().toISOString() });
+    } catch {
+      console.warn("Failed to persist status change to IndexedDB.");
+    }
+  }, [connections]);
+
+  // Phase 2: Delete contacts handler -- persists full state
+  const handleDeleteContacts = useCallback(async (ids: string[]) => {
+    const idSet = new Set(ids);
+    const updatedConns = connections.filter(c => !idSet.has(c.id));
+    setConnections(updatedConns);
+
+    const graph = buildGraphData(updatedConns);
+    const gaps = analyzeGaps(updatedConns);
+    setGraphData(graph);
+    setGapAnalysis(gaps);
+
+    try {
+      const { saveFullState } = await import("@/lib/localDB");
+      await saveFullState({
+        schemaVersion: 3,
+        connections: updatedConns,
+        gapAnalysis: gaps,
+        uploadedAt: new Date().toISOString(),
+        displayFilename: csvMeta?.filename || "Network",
+        enrichment: enrichmentSummary || undefined,
+      });
+    } catch {
+      console.warn("Failed to persist deletion to IndexedDB.");
+    }
+
+    const ctx = buildAgentContext(updatedConns, gaps);
+    systemPromptRef.current = buildSystemPrompt(ctx);
+  }, [connections, csvMeta, enrichmentSummary]);
+
   return (
     <AppShell
       activeTab={activeTab}
@@ -825,9 +875,18 @@ export default function Home() {
             onAddContact={() => setShowManualEntry(true)}
           />
         ) : (
-          <div className="flex items-center justify-center h-full text-sm text-[var(--text-muted)] font-mono">
-            ContactsTable coming in Phase 2
-          </div>
+          <ContactsTable
+            connections={connections}
+            onSelectContact={(id) => setSelectedContactId(id)}
+            onStatusChange={handleStatusChange}
+            onDeleteContacts={handleDeleteContacts}
+            activeView={listView}
+            onViewChange={setListView}
+            searchQuery={contactsSearchQuery}
+            onSearchChange={setContactsSearchQuery}
+            onImport={handleImport}
+            onAddContact={() => setShowManualEntry(true)}
+          />
         )
       )}
 
