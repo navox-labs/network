@@ -335,15 +335,14 @@ export default function ImportModal({
   };
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        onClick={onClose}
-        className="fixed inset-0 z-[500] bg-black/60 backdrop-blur-sm animate-[fadeIn_0.15s_ease]"
-      />
-
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-[500] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+    >
       {/* Modal card */}
-      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[501] w-[min(520px,calc(100vw-32px))] max-h-[min(90vh,680px)] overflow-y-auto bg-[var(--bg)] border border-[var(--border)] rounded-xl shadow-[0_20px_60px_rgba(0,0,0,0.25)] animate-[fadeIn_0.2s_ease]">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="fade-in w-[min(520px,calc(100vw-32px))] max-h-[min(90vh,680px)] overflow-y-auto bg-[var(--bg-panel)] border border-[var(--border)] rounded-xl shadow-[0_20px_60px_rgba(0,0,0,0.25)] mx-4">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--border)] bg-[var(--bg-panel)]">
           <span className="font-mono text-xs text-[var(--text-primary)] tracking-wide">
@@ -404,6 +403,6 @@ export default function ImportModal({
           )}
         </div>
       </div>
-    </>
+    </div>
   );
 }

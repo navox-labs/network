@@ -70,15 +70,14 @@ export default function SettingsDialog({ isOpen, onClose }: Props) {
   if (!isOpen) return null;
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        onClick={onClose}
-        className="fixed inset-0 z-[600] bg-black/30 animate-[fadeIn_0.15s_ease]"
-      />
-
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-[600] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+    >
       {/* Dialog */}
-      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[601] w-[min(440px,calc(100vw-48px))] bg-[var(--bg)] border border-[var(--border)] rounded-[14px] shadow-[0_20px_60px_rgba(0,0,0,0.15)] animate-[fadeIn_0.2s_ease] overflow-hidden">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="fade-in w-[min(440px,calc(100vw-48px))] bg-[var(--bg-panel)] border border-[var(--border)] rounded-xl shadow-[0_20px_60px_rgba(0,0,0,0.15)] overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)] bg-[var(--bg-panel)]">
           <div className="flex items-center gap-2">
@@ -114,6 +113,6 @@ export default function SettingsDialog({ isOpen, onClose }: Props) {
 
         <div className="px-4 pb-2" />
       </div>
-    </>
+    </div>
   );
 }

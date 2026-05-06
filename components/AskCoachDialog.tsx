@@ -77,64 +77,30 @@ export default function AskCoachDialog({ isOpen, onClose, systemPrompt, onOpenSe
   if (!isOpen) return null;
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        onClick={onClose}
-        style={{
-          position: "fixed", inset: 0, zIndex: 600,
-          background: "rgba(0,0,0,0.3)",
-          animation: "fadeIn 0.15s ease",
-        }}
-      />
-
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-[600] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+    >
       {/* Dialog */}
-      <div style={{
-        position: "fixed",
-        top: "50%", left: "50%",
-        transform: "translate(-50%, -50%)",
-        zIndex: 601,
-        width: "min(480px, calc(100vw - 48px))",
-        background: "var(--bg)",
-        border: "1px solid var(--border)",
-        borderRadius: 14,
-        boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
-        animation: "fadeIn 0.2s ease",
-        overflow: "hidden",
-      }}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="fade-in w-[min(480px,calc(100vw-48px))] bg-[var(--bg-panel)] border border-[var(--border)] rounded-xl shadow-[0_20px_60px_rgba(0,0,0,0.15)] overflow-hidden">
         {/* Header */}
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "12px 16px",
-          borderBottom: "1px solid var(--border)",
-          background: "var(--bg-panel)",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Sparkles size={14} color="var(--accent)" />
-            <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-primary)", letterSpacing: "0.03em" }}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)] bg-[var(--bg-panel)]">
+          <div className="flex items-center gap-2">
+            <Sparkles size={14} className="text-[var(--accent)]" />
+            <span className="font-mono text-xs text-[var(--text-primary)] tracking-wide">
               Ask Coach
             </span>
             {hasKey && (
-              <span style={{
-                fontSize: 10,
-                color: "var(--text-muted)",
-                fontFamily: "var(--font-mono)",
-                padding: "1px 6px",
-                background: "var(--bg-card)",
-                borderRadius: 4,
-                border: "1px solid var(--border)",
-              }}>
+              <span className="text-[10px] font-mono text-[var(--text-muted)] px-1.5 py-px bg-[var(--bg-card)] rounded border border-[var(--border)]">
                 via {config!.provider === "openai" ? "OpenAI" : "Anthropic"}
               </span>
             )}
           </div>
           <button
             onClick={onClose}
-            style={{
-              background: "none", border: "none", cursor: "pointer",
-              color: "var(--text-muted)", padding: 4, lineHeight: 1,
-              display: "flex", alignItems: "center",
-            }}
+            className="bg-transparent border-none cursor-pointer text-[var(--text-muted)] p-1 leading-none flex items-center"
           >
             <X size={16} />
           </button>
@@ -142,20 +108,17 @@ export default function AskCoachDialog({ isOpen, onClose, systemPrompt, onOpenSe
 
         {/* No key prompt */}
         {!hasKey && (
-          <div style={{ padding: "24px 16px", textAlign: "center" }}>
-            <div style={{
-              fontSize: 13, color: "var(--text-secondary)", marginBottom: 12, lineHeight: 1.5,
-            }}>
+          <div className="px-4 py-6 text-center">
+            <div className="text-[13px] text-[var(--text-secondary)] mb-3 leading-relaxed">
               Add your API key to use Coach
             </div>
             <button
               onClick={() => { onClose(); onOpenSettings(); }}
-              className="btn btn-primary"
-              style={{ fontSize: 12, padding: "7px 16px" }}
+              className="btn btn-primary text-xs px-4 py-[7px]"
             >
               Open Settings
             </button>
-            <div style={{ marginTop: 10, fontSize: 11, color: "var(--text-muted)" }}>
+            <div className="mt-2.5 text-[11px] text-[var(--text-muted)]">
               Supports OpenAI and Anthropic keys.
             </div>
           </div>
@@ -163,23 +126,10 @@ export default function AskCoachDialog({ isOpen, onClose, systemPrompt, onOpenSe
 
         {/* Answer */}
         {hasKey && (answer || isLoading) && (
-          <div style={{
-            padding: "16px 16px 0",
-          }}>
-            <div style={{
-              padding: "12px 14px",
-              background: "var(--bg-card)",
-              border: "1px solid var(--border)",
-              borderRadius: 8,
-              fontSize: 13,
-              color: "var(--text-primary)",
-              lineHeight: 1.6,
-              whiteSpace: "pre-wrap",
-              maxHeight: 240,
-              overflow: "auto",
-            }}>
+          <div className="px-4 pt-4">
+            <div className="p-3 bg-[var(--bg-card)] border border-[var(--border)] rounded-lg text-[13px] text-[var(--text-primary)] leading-relaxed whitespace-pre-wrap max-h-60 overflow-auto">
               {answer || (
-                <span style={{ color: "var(--text-muted)", animation: "pulse 1.5s infinite" }}>
+                <span className="text-[var(--text-muted)] animate-pulse">
                   Thinking...
                 </span>
               )}
@@ -189,7 +139,7 @@ export default function AskCoachDialog({ isOpen, onClose, systemPrompt, onOpenSe
 
         {/* Input */}
         {hasKey && (
-          <div style={{ padding: "16px", display: "flex", gap: 8 }}>
+          <div className="flex gap-2 p-4">
             <input
               ref={inputRef}
               type="text"
@@ -198,19 +148,18 @@ export default function AskCoachDialog({ isOpen, onClose, systemPrompt, onOpenSe
               onChange={(e) => setQuestion(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") handleAsk(); }}
               disabled={isLoading}
-              style={{ flex: 1, opacity: isLoading ? 0.6 : 1 }}
+              className={`flex-1 ${isLoading ? "opacity-60" : ""}`}
             />
             <button
               onClick={handleAsk}
               disabled={isLoading || !question.trim()}
-              className="btn btn-primary"
-              style={{ padding: "7px 12px", opacity: isLoading || !question.trim() ? 0.5 : 1 }}
+              className={`btn btn-primary px-3 py-[7px] ${isLoading || !question.trim() ? "opacity-50" : ""}`}
             >
               <Send size={14} />
             </button>
           </div>
         )}
       </div>
-    </>
+    </div>
   );
 }
