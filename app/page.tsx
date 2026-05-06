@@ -63,6 +63,7 @@ import AppShell, { type ActiveTab } from "@/components/AppShell";
 import EmptyState from "@/components/EmptyState";
 import ContactsTable from "@/components/ContactsTable";
 import ContactDetail from "@/components/ContactDetail";
+import PipelineView from "@/components/PipelineView";
 import ImportModal from "@/components/ImportModal";
 import { type ListViewId } from "@/lib/listViewFilters";
 import type { ConnectionStatus, OutreachVoice } from "@/lib/types";
@@ -964,9 +965,21 @@ export default function Home() {
 
       {/* Pipeline tab */}
       {activeTab === "pipeline" && (
-        <div className="flex items-center justify-center h-full text-sm text-[var(--text-muted)] font-mono">
-          PipelineView coming in Phase 5
-        </div>
+        connections.length === 0 ? (
+          <EmptyState
+            onImport={handleImport}
+            onAddContact={() => setShowManualEntry(true)}
+          />
+        ) : (
+          <PipelineView
+            connections={connections}
+            onSelectContact={(id) => {
+              setSelectedContactId(id);
+              setActiveTab("contacts");
+            }}
+            onStatusChange={handleStatusChange}
+          />
+        )
       )}
 
       {/* Modals */}
