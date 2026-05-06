@@ -62,8 +62,9 @@ import SettingsDialog from "@/components/SettingsDialog";
 import AppShell, { type ActiveTab } from "@/components/AppShell";
 import EmptyState from "@/components/EmptyState";
 import ContactsTable from "@/components/ContactsTable";
+import ContactDetail from "@/components/ContactDetail";
 import { type ListViewId } from "@/lib/listViewFilters";
-import type { ConnectionStatus } from "@/lib/types";
+import type { ConnectionStatus, OutreachVoice } from "@/lib/types";
 
 // Keep ActivePanel exported for backward compatibility with coachContext/coachInsights
 export type ActivePanel = "graph" | "gaps" | "search" | "queue";
@@ -829,6 +830,30 @@ export default function Home() {
     }
   }, [connections]);
 
+  // Phase 3: Notes change handler -- persists to IndexedDB
+  const handleNotesChange = useCallback(async (id: string, notes: string) => {
+    const updatedConns = connections.map(c => c.id === id ? { ...c, notes } : c);
+    setConnections(updatedConns);
+    try {
+      const { updateConnection } = await import("@/lib/localDB");
+      await updateConnection(id, { notes });
+    } catch {
+      console.warn("Failed to persist notes change to IndexedDB.");
+    }
+  }, [connections]);
+
+  // Phase 3: Voice change handler -- persists to IndexedDB
+  const handleVoiceChange = useCallback(async (id: string, voice: OutreachVoice) => {
+    const updatedConns = connections.map(c => c.id === id ? { ...c, outreachVoice: voice } : c);
+    setConnections(updatedConns);
+    try {
+      const { updateConnection } = await import("@/lib/localDB");
+      await updateConnection(id, { outreachVoice: voice });
+    } catch {
+      console.warn("Failed to persist voice change to IndexedDB.");
+    }
+  }, [connections]);
+
   // Phase 2: Delete contacts handler -- persists full state
   const handleDeleteContacts = useCallback(async (ids: string[]) => {
     const idSet = new Set(ids);
@@ -873,6 +898,18 @@ export default function Home() {
           <EmptyState
             onImport={handleImport}
             onAddContact={() => setShowManualEntry(true)}
+          />
+        ) : selectedContactId && connections.find(c => c.id === selectedContactId) ? (
+          <ContactDetail
+            connection={connections.find(c => c.id === selectedContactId)!}
+            onBack={() => setSelectedContactId(null)}
+            onStatusChange={handleStatusChange}
+            onNotesChange={handleNotesChange}
+            onVoiceChange={handleVoiceChange}
+            onDraftMessage={handleDraftMessage}
+            draftMessage={draftMessages.get(selectedContactId)}
+            isDrafting={draftingId === selectedContactId}
+            onOpenSettings={() => setSettingsOpen(true)}
           />
         ) : (
           <ContactsTable
