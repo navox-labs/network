@@ -54,25 +54,22 @@ import { buildContextSection, type CoachContext } from "@/lib/coachContext";
 import { getBarInsight, getDraftPrompt } from "@/lib/coachInsights";
 import { getAIConfig, streamAIResponse, DRAFT_NO_KEY } from "@/lib/aiClient";
 
-import UploadScreen, { type SourceType } from "@/components/UploadScreen";
-import TopBar from "@/components/TopBar";
+import { type SourceType } from "@/components/UploadScreen";
 import ManualEntryForm from "@/components/ManualEntryForm";
 import GraphView from "@/components/GraphView";
-import GapPanel from "@/components/GapPanel";
-import CompanySearch from "@/components/CompanySearch";
-import OutreachQueue from "@/components/OutreachQueue";
-import CoachBar from "@/components/CoachBar";
-import EnrichBanner, { shouldShowBanner } from "@/components/EnrichBanner";
 import AskCoachDialog from "@/components/AskCoachDialog";
 import SettingsDialog from "@/components/SettingsDialog";
+import AppShell, { type ActiveTab } from "@/components/AppShell";
+import EmptyState from "@/components/EmptyState";
 
+// Keep ActivePanel exported for backward compatibility with coachContext/coachInsights
 export type ActivePanel = "graph" | "gaps" | "search" | "queue";
 
 export default function Home() {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [graphData, setGraphData] = useState<GraphData | null>(null);
   const [gapAnalysis, setGapAnalysis] = useState<GapAnalysis | null>(null);
-  const [activePanel, setActivePanel] = useState<ActivePanel>("graph");
+  const [activeTab, setActiveTab] = useState<ActiveTab>("contacts");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [parsingStage, setParsingStage] = useState<string | null>(null);
@@ -80,6 +77,10 @@ export default function Home() {
   const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
   const [csvMeta, setCsvMeta] = useState<{ filename: string; generatedAt: string } | null>(null);
   const [enrichmentSummary, setEnrichmentSummary] = useState<EnrichmentSummary | null>(null);
+
+  // Phase 3 / Phase 4 state placeholders
+  const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
+  const [importModalOpen, setImportModalOpen] = useState(false);
 
   // Enrichment banner state
   const [isEnriching, setIsEnriching] = useState(false);
@@ -179,19 +180,19 @@ export default function Home() {
   const currentSystemPrompt = useMemo(() => {
     if (!systemPromptRef.current) return "";
     const ctx: CoachContext = {
-      activeTab: activePanel,
+      activeTab: "graph" as ActivePanel,
       selectedNode,
       searchQuery,
       searchResultCount,
       gapAnalysis,
     };
     return systemPromptRef.current + "\n\n" + buildContextSection(ctx);
-  }, [activePanel, selectedNode, searchQuery, searchResultCount, gapAnalysis]);
+  }, [selectedNode, searchQuery, searchResultCount, gapAnalysis]);
 
   // CoachBar insight (computed client-side, instant)
   const barInsight = useMemo(() => {
-    return getBarInsight(activePanel, selectedNode, gapAnalysis, searchQuery, searchResultCount);
-  }, [activePanel, selectedNode, gapAnalysis, searchQuery, searchResultCount]);
+    return getBarInsight("graph" as ActivePanel, selectedNode, gapAnalysis, searchQuery, searchResultCount);
+  }, [selectedNode, gapAnalysis, searchQuery, searchResultCount]);
 
   const handleSearchChange = useCallback((query: string, resultCount: number) => {
     setSearchQuery(query);
@@ -262,11 +263,11 @@ export default function Home() {
   const handleFiles = useCallback(async (files: File[], sourceType: SourceType = "linkedin") => {
     setIsLoading(true);
     setError(null);
-    setParsingStage("Detecting file type…");
+    setParsingStage("Detecting file type\u2026");
 
     try {
       if (sourceType === "generic") {
-        // ── Generic CSV path ──────────────────────────────────────────
+        // -- Generic CSV path --
         // Read the first CSV file and parse it with normalized headers
         const csvFile = files.find((f) => f.name.toLowerCase().endsWith(".csv"));
         if (!csvFile) {
@@ -276,7 +277,7 @@ export default function Home() {
           return;
         }
 
-        setParsingStage("Reading CSV…");
+        setParsingStage("Reading CSV\u2026");
         const csvText = await csvFile.text();
         const rawParse = Papa.parse<Record<string, string>>(csvText, {
           header: true,
@@ -298,7 +299,7 @@ export default function Home() {
         }
 
         const headerMap = normalizeGenericCSVHeaders(rawParse.meta.fields);
-        setParsingStage("Parsing contacts…");
+        setParsingStage("Parsing contacts\u2026");
 
         // Build Connection objects from generic CSV rows
         const today = new Date().toISOString().split("T")[0];
@@ -383,7 +384,7 @@ export default function Home() {
           ? mergeMultiSourceContacts(connections, parsed, "generic_csv")
           : parsed;
 
-        setParsingStage("Building network graph…");
+        setParsingStage("Building network graph\u2026");
         const graph = buildGraphData(finalConnections);
         const gaps = analyzeGaps(finalConnections);
 
@@ -408,18 +409,18 @@ export default function Home() {
             displayFilename,
           });
         } catch {
-          console.warn("IndexedDB save failed — data will not persist across refresh.");
+          console.warn("IndexedDB save failed -- data will not persist across refresh.");
         }
 
         const ctx = buildAgentContext(finalConnections, gaps);
         systemPromptRef.current = buildSystemPrompt(ctx);
 
       } else {
-        // ── LinkedIn CSV path (existing behavior) ─────────────────────
+        // -- LinkedIn CSV path (existing behavior) --
         // Step 1: Ingest files (zip, folder, or loose CSVs)
         const fileMap = await ingestFiles(files);
 
-        // Step 2: Validate — connections.csv is required
+        // Step 2: Validate -- connections.csv is required
         const validationError = validateFileMap(fileMap);
         if (validationError) {
           setError(validationError);
@@ -429,7 +430,7 @@ export default function Home() {
         }
 
         const fileSummary = summarizeFiles(fileMap);
-        setParsingStage("Parsing connections…");
+        setParsingStage("Parsing connections\u2026");
 
         // Step 3: Parse connections.csv
         const connectionsCSV = stripCsvPreamble(fileMap.get("connections.csv")!);
@@ -451,7 +452,7 @@ export default function Home() {
         const hasEnrichmentFiles = fileSummary.enrichmentFileCount > 0;
 
         if (hasEnrichmentFiles) {
-          setParsingStage("Matching enrichment data…");
+          setParsingStage("Matching enrichment data\u2026");
 
           const msgRows = fileMap.has("messages.csv")
             ? Papa.parse<Record<string, string>>(fileMap.get("messages.csv")!, { header: true, skipEmptyLines: true }).data
@@ -499,7 +500,7 @@ export default function Home() {
         }
 
         // Step 5: Build graph and gap analysis
-        setParsingStage("Building network graph…");
+        setParsingStage("Building network graph\u2026");
         const graph = buildGraphData(parsed);
         const gaps = analyzeGaps(parsed);
 
@@ -523,7 +524,7 @@ export default function Home() {
           generatedAt: new Date().toLocaleDateString("en-CA"),
         });
 
-        // Step 7: Save to IndexedDB — isolated try/catch
+        // Step 7: Save to IndexedDB -- isolated try/catch
         // so a storage error doesn't mask the successful parse
         try {
           const { saveFullState } = await import("@/lib/localDB");
@@ -536,7 +537,7 @@ export default function Home() {
             enrichment: enrichment || undefined,
           });
         } catch {
-          console.warn("IndexedDB save failed — data will not persist across refresh.");
+          console.warn("IndexedDB save failed -- data will not persist across refresh.");
         }
 
         // Step 8: Build system prompt
@@ -631,7 +632,7 @@ export default function Home() {
     setHighlightedIds(new Set());
     setCsvMeta(null);
     setError(null);
-    setActivePanel("graph");
+    setActiveTab("contacts");
     setDraftMessages(new Map());
     setEnrichmentSummary(null);
     setBannerDismissed(false);
@@ -653,7 +654,7 @@ export default function Home() {
     try {
       const fileMap = await ingestFiles(files);
 
-      // Skip connections.csv — we don't want to re-parse connections
+      // Skip connections.csv -- we don't want to re-parse connections
       fileMap.delete("connections.csv");
 
       if (fileMap.size === 0) {
@@ -737,7 +738,7 @@ export default function Home() {
           enrichment,
         });
       } catch {
-        console.warn("IndexedDB save failed — data will not persist across refresh.");
+        console.warn("IndexedDB save failed -- data will not persist across refresh.");
       }
 
       // Rebuild system prompt
@@ -801,68 +802,42 @@ export default function Home() {
     }
   }, [draftMessages, draftingId]);
 
-  // CoachBar action handler
-  const handleCoachAction = useCallback((action: string) => {
-    switch (action) {
-      case "switch-gaps": setActivePanel("gaps"); break;
-      case "switch-queue": setActivePanel("queue"); break;
-      case "switch-search": setActivePanel("search"); break;
-      case "switch-graph": setActivePanel("graph"); break;
-      case "draft-message":
-        if (selectedNode) handleDraftMessage(selectedNode);
-        break;
-    }
-  }, [selectedNode, handleDraftMessage]);
-
-  if (!graphData || !gapAnalysis) {
-    return (
-      <UploadScreen
-        onFiles={handleFiles}
-        isLoading={isLoading}
-        error={error}
-        parsingStage={parsingStage}
-      />
-    );
-  }
+  // Import handler -- opens manual entry for now (Phase 4 will add ImportModal)
+  const handleImport = useCallback(() => {
+    setImportModalOpen(true);
+    // TODO Phase 4: open ImportModal instead
+  }, []);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
-      <TopBar
-        connections={connections}
-        gapAnalysis={gapAnalysis}
-        activePanel={activePanel}
-        setActivePanel={setActivePanel}
-        csvMeta={csvMeta}
-        onReset={handleReset}
-        onOpenSettings={() => setSettingsOpen(true)}
-        onAddManualContact={() => setShowManualEntry(true)}
-      />
-
-      {/* CoachBar hidden for V1 — revisit post-launch
-      <CoachBar
-        insight={barInsight}
-        onAction={handleCoachAction}
-        onAskCoach={() => setAskCoachOpen(true)}
-      />
-      */}
-
-      {(shouldShowBanner(connections.length > 0, enrichmentSummary, bannerDismissed) || isEnriching || enrichResult) && (
-        <EnrichBanner
-          enrichmentSummary={enrichmentSummary}
-          onEnrich={handleEnrichFiles}
-          isEnriching={isEnriching}
-          enrichResult={enrichResult}
-        />
+    <AppShell
+      activeTab={activeTab}
+      onTabChange={setActiveTab}
+      connectionCount={connections.length}
+      onImport={handleImport}
+      onAddContact={() => setShowManualEntry(true)}
+      onOpenSettings={() => setSettingsOpen(true)}
+    >
+      {/* Contacts tab */}
+      {activeTab === "contacts" && (
+        connections.length === 0 ? (
+          <EmptyState
+            onImport={handleImport}
+            onAddContact={() => setShowManualEntry(true)}
+          />
+        ) : (
+          <div className="flex items-center justify-center h-full text-sm text-[var(--text-muted)] font-mono">
+            ContactsTable coming in Phase 2
+          </div>
+        )
       )}
 
-      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-        {/* Graph always mounted, visibility toggled so force sim state persists */}
-        <div style={{
-          flex: 1,
-          display: activePanel === "graph" ? "block" : "none",
-          position: "relative",
-          overflow: "hidden",
-        }}>
+      {/* Graph tab -- always mounted, visibility toggled so force sim state persists */}
+      <div
+        className={`h-full w-full relative overflow-hidden ${
+          activeTab === "graph" ? "block" : "hidden"
+        }`}
+      >
+        {graphData && (
           <GraphView
             graphData={graphData}
             connections={connections}
@@ -874,42 +849,22 @@ export default function Home() {
             draftingId={draftingId}
             onOpenSettings={() => setSettingsOpen(true)}
           />
-        </div>
-
-        {activePanel === "gaps" && (
-          <div style={{ flex: 1, overflow: "hidden" }}>
-            <GapPanel
-              gapAnalysis={gapAnalysis}
-              connections={connections}
-              onSwitchToSearch={(query) => { setActivePanel("search"); }}
-              enrichmentSummary={enrichmentSummary}
-              totalConnections={connections.length}
-            />
-          </div>
         )}
-
-        {activePanel === "search" && (
-          <div style={{ flex: 1, overflow: "hidden" }}>
-            <CompanySearch
-              connections={connections}
-              onHighlight={(ids) => setHighlightedIds(ids)}
-              onSelectNode={setSelectedNode}
-              onSwitchToGraph={() => setActivePanel("graph")}
-              onSearchChange={handleSearchChange}
-            />
-          </div>
-        )}
-
-        {activePanel === "queue" && (
-          <div style={{ flex: 1, overflow: "hidden" }}>
-            <OutreachQueue
-              connections={connections}
-              gapAnalysis={gapAnalysis}
-            />
+        {!graphData && activeTab === "graph" && (
+          <div className="flex items-center justify-center h-full text-sm text-[var(--text-muted)] font-mono">
+            Import contacts to view the network graph
           </div>
         )}
       </div>
 
+      {/* Pipeline tab */}
+      {activeTab === "pipeline" && (
+        <div className="flex items-center justify-center h-full text-sm text-[var(--text-muted)] font-mono">
+          PipelineView coming in Phase 5
+        </div>
+      )}
+
+      {/* Modals */}
       <AskCoachDialog
         isOpen={askCoachOpen}
         onClose={() => setAskCoachOpen(false)}
@@ -928,6 +883,6 @@ export default function Home() {
           onCancel={() => setShowManualEntry(false)}
         />
       )}
-    </div>
+    </AppShell>
   );
 }
