@@ -54,7 +54,7 @@ import { buildContextSection, type CoachContext } from "@/lib/coachContext";
 import { getBarInsight, getDraftPrompt } from "@/lib/coachInsights";
 import { getAIConfig, streamAIResponse, DRAFT_NO_KEY } from "@/lib/aiClient";
 
-import { type SourceType } from "@/components/UploadScreen";
+type SourceType = "linkedin" | "generic";
 import ManualEntryForm from "@/components/ManualEntryForm";
 import GraphView from "@/components/GraphView";
 import AskCoachDialog from "@/components/AskCoachDialog";
