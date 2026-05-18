@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/5951d14b-495e-47dc-9280-7d5da9e29da4
 <img width="1306" height="854" alt="map" src="https://github.com/user-attachments/assets/5ea217f7-6e61-425f-91e4-78187f630f3c" />
 
 
-🔗 **<a href="https://navox.tech/network" target="_blank">Live Demo →</a>**
+🔗 **<a href="https://network-peach-three.vercel.app/network" target="_blank">Live Demo →</a>**
 
 ---
 
@@ -40,7 +40,7 @@ Upload your LinkedIn data export. No login. No server. No data leaves your brows
 | **Company Search** | Who do I already know at this company? |
 | **Outreach Queue** | Who should I contact this week, and what do I say? |
 
-🔗 **<a href="https://navox.tech/network" target="_blank">Try it now →</a>** or run it locally below.
+🔗 **<a href="https://network-peach-three.vercel.app/network" target="_blank">Try it now →</a>** or run it locally below.
 
 ---
 
