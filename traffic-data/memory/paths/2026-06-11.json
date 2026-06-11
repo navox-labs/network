@@ -1,0 +1,32 @@
+[
+  {
+    "path": "/navox-labs/network",
+    "title": "Overview",
+    "count": 14,
+    "uniques": 7
+  },
+  {
+    "path": "/navox-labs/network/pulse",
+    "title": "/pulse",
+    "count": 4,
+    "uniques": 1
+  },
+  {
+    "path": "/navox-labs/network/blob/main/invisible_network.pdf",
+    "title": "/blob/main/invisible_network.pdf",
+    "count": 1,
+    "uniques": 1
+  },
+  {
+    "path": "/navox-labs/network/commits",
+    "title": "/commits",
+    "count": 1,
+    "uniques": 1
+  },
+  {
+    "path": "/navox-labs/network/graphs/traffic",
+    "title": "/graphs/traffic",
+    "count": 1,
+    "uniques": 1
+  }
+]
